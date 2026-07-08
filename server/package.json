@@ -1,0 +1,24 @@
+{
+  "name": "viberank-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "viberank leaderboard backend: Discord OAuth, stats ingest with anti-cheat clamping, and the global leaderboard site. Zero runtime dependencies (node:http + node:sqlite).",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "author": "shashank",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.7"
+  }
+}
