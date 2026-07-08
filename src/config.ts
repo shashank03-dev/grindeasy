@@ -20,6 +20,12 @@ export interface Config {
   declaredPlan: "pro" | "max";
   /** Keep the Discord card up (showing tier) even when no tool is active. */
   showIdlePresence: boolean;
+  /** Leaderboard server base URL, e.g. https://viberank.example. Empty = sync off. */
+  serverUrl: string;
+  /** Agent token from your /me page on the leaderboard server. Empty = sync off. */
+  accountToken: string;
+  /** How often to push totals to the leaderboard server, in ms. */
+  syncIntervalMs: number;
   /** Optional overrides for tool detection. Empty = use built-in defaults. */
   tools: ToolDef[];
 }
@@ -33,6 +39,9 @@ export const DEFAULT_CONFIG: Config = {
   donateUrl: "https://www.buymeacoffee.com/",
   declaredPlan: "pro",
   showIdlePresence: true,
+  serverUrl: "",
+  accountToken: "",
+  syncIntervalMs: 5 * 60_000,
   tools: [],
 };
 

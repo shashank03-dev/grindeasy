@@ -5,6 +5,9 @@ const TOOL_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
   opencode: "OpenCode",
+  cursor: "Cursor",
+  "gemini-cli": "Gemini CLI",
+  aider: "Aider",
 };
 
 function esc(s: string): string {
@@ -39,6 +42,22 @@ export function renderPage(s: Snapshot): string {
       ? `${(s.nextAtXp - s.xp).toFixed(1)} XP to next tier`
       : "Max tier reached";
 
+  const chips = s.achievements
+    .map(
+      (a) =>
+        `<span class="chip${a.earned ? " on" : ""}" title="${esc(a.detail)}">${esc(a.label)}</span>`,
+    )
+    .join("");
+
+  const syncLine =
+    s.sync === null
+      ? "Local dashboard · nothing here leaves your machine"
+      : s.sync.status === "ok"
+        ? `Leaderboard sync ✓ · last ${esc(s.sync.lastSyncAt ?? "")}`
+        : s.sync.status === "error"
+          ? `Leaderboard sync failed: ${esc(s.sync.lastError ?? "unknown")}`
+          : "Leaderboard sync pending…";
+
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -70,6 +89,10 @@ export function renderPage(s: Snapshot): string {
   .stat { background: #0f1320; border: 1px solid #212739; border-radius: 12px; padding: 12px; text-align: center; }
   .stat b { display: block; font-size: 20px; }
   .stat span { color: #8b93a7; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+  .chip { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid #212739;
+    color: #4b5265; }
+  .chip.on { color: #ffd166; border-color: #4d3f1f; background: rgba(255, 209, 102, .06); }
   .rows { border-top: 1px solid #212739; padding-top: 14px; }
   .row { display: flex; justify-content: space-between; padding: 5px 0; }
   .row.muted span { color: #6b7280; }
@@ -95,9 +118,10 @@ export function renderPage(s: Snapshot): string {
     <div class="stat"><b>${s.combos}</b><span>Combos</span></div>
     <div class="stat"><b>${s.streakDays}🔥</b><span>Streak</span></div>
   </div>
+  <div class="chips">${chips}</div>
   <div class="rows">${toolRows}</div>
   <a class="donate" href="${esc(s.donateUrl)}" target="_blank" rel="noopener">☕ Support viberank</a>
-  <div class="foot">Local dashboard · nothing here leaves your machine</div>
+  <div class="foot">${syncLine}</div>
 </div></body></html>`;
 }
 

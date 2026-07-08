@@ -31,6 +31,27 @@ export function defaultTools(home = homedir()): ToolDef[] {
       ],
       extensions: [".json", ".jsonl", ".log"],
     },
+    // The three below are best-effort: session dir layouts vary by version and
+    // platform. A wrong path is harmless (the tool just never shows active) and
+    // any of them can be overridden via `tools` in ~/.viberank/config.json.
+    {
+      id: "cursor",
+      name: "Cursor",
+      activityDirs: [join(home, ".cursor", "chats"), join(home, ".cursor", "cli")],
+      extensions: [".json", ".jsonl", ".md"],
+    },
+    {
+      id: "gemini-cli",
+      name: "Gemini CLI",
+      activityDirs: [join(home, ".gemini", "tmp")],
+      extensions: [".json", ".log"],
+    },
+    {
+      id: "aider",
+      name: "Aider",
+      activityDirs: [join(home, ".aider")],
+      extensions: [".json", ".jsonl", ".md"],
+    },
   ];
 }
 
