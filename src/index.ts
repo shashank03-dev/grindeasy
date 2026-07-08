@@ -5,6 +5,7 @@ import { PresenceManager, REPO_URL } from "./presence.js";
 import { buildSnapshot } from "./snapshot.js";
 import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
+import { SyncClient } from "./sync.js";
 import { computeTier } from "./tiers.js";
 import { detectAll, defaultTools } from "./tools.js";
 import { Tracker } from "./tracker.js";
@@ -46,8 +47,14 @@ async function main(): Promise<void> {
   });
   presence.start();
 
+  const sync = new SyncClient({
+    serverUrl: config.serverUrl,
+    accountToken: config.accountToken,
+    syncIntervalMs: config.syncIntervalMs,
+  });
+
   const server = startStatsServer(config.statsPort, () =>
-    buildSnapshot(stats, plan, activeNames, config.donateUrl),
+    buildSnapshot(stats, plan, activeNames, config.donateUrl, Date.now(), sync.state),
   );
 
   const startTier = computeTier(stats);
@@ -55,6 +62,11 @@ async function main(): Promise<void> {
   console.log(`   tier      ${startTier.glyph} ${startTier.name}  ·  plan ${planBadge(plan)}`);
   console.log(`   dashboard http://localhost:${config.statsPort}`);
   console.log(`   tools     ${tools.map((t) => t.name).join(", ")}`);
+  console.log(
+    `   sync      ${
+      sync.enabled ? `→ ${config.serverUrl}` : "off — link a leaderboard account to enable"
+    }`,
+  );
   console.log(`   repo      ${REPO_URL}`);
   if (created || !config.discordClientId) printSetupHelp();
 
@@ -83,6 +95,7 @@ async function main(): Promise<void> {
       sessionStartMs,
     });
     saveStats(dir, stats);
+    void sync.maybeSync(stats, plan, now);
   }
 
   async function loop(): Promise<void> {

@@ -1,11 +1,19 @@
 import { planBadge } from "./plan.js";
-import { computeTier, TIERS, totalActiveMs } from "./tiers.js";
+import type { SyncState } from "./sync.js";
+import { computeTier, computeXp, TIERS, totalActiveMs } from "./tiers.js";
 import { dayKey } from "./tracker.js";
 import type { Plan, Stats } from "./types.js";
 
 export interface ToolLine {
   id: string;
   hours: number;
+}
+
+export interface Achievement {
+  id: string;
+  label: string;
+  detail: string;
+  earned: boolean;
 }
 
 export interface Snapshot {
@@ -21,8 +29,31 @@ export interface Snapshot {
   planBadge: string;
   streakDays: number;
   activeNow: string[];
+  achievements: Achievement[];
+  /** Leaderboard sync state, or null when sync is not configured. */
+  sync: SyncState | null;
   donateUrl: string;
   generatedAt: string;
+}
+
+/** Derived on the fly from stats — nothing extra is persisted. */
+export function computeAchievements(stats: Stats, now = Date.now()): Achievement[] {
+  const totalHours = totalActiveMs(stats) / 3_600_000;
+  const streak = computeStreak(stats.daily, now);
+  const toolsWithAnHour = Object.values(stats.activeMsByTool).filter(
+    (ms) => ms >= 3_600_000,
+  ).length;
+  return [
+    { id: "first-hour", label: "Warming Up", detail: "1 active hour", earned: totalHours >= 1 },
+    { id: "ten-hours", label: "Locked In", detail: "10 active hours", earned: totalHours >= 10 },
+    { id: "fifty-hours", label: "Grinder", detail: "50 active hours", earned: totalHours >= 50 },
+    { id: "first-combo", label: "First Combo", detail: "2+ tools in one window", earned: stats.combos >= 1 },
+    { id: "combo-25", label: "Combo Artist", detail: "25 combo windows", earned: stats.combos >= 25 },
+    { id: "streak-3", label: "On a Roll", detail: "3-day streak", earned: streak >= 3 },
+    { id: "streak-7", label: "Week Warrior", detail: "7-day streak", earned: streak >= 7 },
+    { id: "polyglot", label: "Polyglot", detail: "1h+ in 3 tools", earned: toolsWithAnHour >= 3 },
+    { id: "diamond", label: "Diamond", detail: "Reach Diamond tier", earned: computeXp(stats) >= 250 },
+  ];
 }
 
 /** Consecutive days ending today (or yesterday) that recorded any active time. */
@@ -54,6 +85,7 @@ export function buildSnapshot(
   activeNow: string[],
   donateUrl: string,
   now = Date.now(),
+  sync: SyncState | null = null,
 ): Snapshot {
   const tier = computeTier(stats);
   const totalHours = totalActiveMs(stats) / 3_600_000;
@@ -82,6 +114,8 @@ export function buildSnapshot(
     planBadge: planBadge(plan),
     streakDays: computeStreak(stats.daily, now),
     activeNow,
+    achievements: computeAchievements(stats, now),
+    sync: sync && sync.status !== "disabled" ? sync : null,
     donateUrl,
     generatedAt: new Date(now).toISOString(),
   };
