@@ -3,9 +3,10 @@
 **Show what you're actively coding with — right on your Discord profile — and climb the tiers.**
 
 viberank is a tiny local agent that watches which AI coding tools you're *actively*
-using (Claude Code, Codex, OpenCode…), shows a live **Discord Rich Presence** card,
-and tracks your personal **tier** (Bronze → Diamond). A global leaderboard with
-`[API] / [PRO] / [MAX]` badges is coming in Phase 2.
+using (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Aider), shows a live
+**Discord Rich Presence** card, tracks your personal **tier** (Bronze → Diamond)
+and **achievements**, and can sync to a **global leaderboard** with
+`[API] / [PRO] / [MAX]` badges (see [`server/`](./server) — self-hostable, zero deps).
 
 Free forever. If it makes your day a little better, [buy the author a coffee](#support).
 
@@ -21,13 +22,13 @@ Free forever. If it makes your day a little better, [buy the author a coffee](#s
 The agent decides a tool is "active" purely from the **modification time of that
 tool's own session files** — it **never reads their contents**.
 
-| Leaves your machine (Phase 2 only) | **Never** leaves your machine |
+| Leaves your machine (only if YOU link a leaderboard account) | **Never** leaves your machine |
 |---|---|
 | tool name, active minutes, combo count, plan label, Discord handle | your code, prompts, responses, file names/paths, API keys, auth tokens |
 
-**Phase 1 (this release) is 100% local** — it talks only to your local Discord
-desktop app and a dashboard on `localhost`. Nothing is uploaded. The whole agent
-is open source so you can verify every line.
+By default the agent is **100% local** — it talks only to your local Discord
+desktop app and a dashboard on `localhost`. Leaderboard sync is opt-in and sends
+aggregates only. The whole project is open source so you can verify every line.
 
 ---
 
@@ -77,6 +78,25 @@ Your card appears on your profile whenever a tracked tool is active.
 | `statsPort` | `4599` | Local dashboard port |
 | `donateUrl` | Buy Me a Coffee | Where the support button points |
 | `showIdlePresence` | `true` | Keep the card up (showing your tier) when idle |
+| `serverUrl` | `""` | Leaderboard server base URL (empty = sync off) |
+| `accountToken` | `""` | Your agent token from the server's `/me` page (empty = sync off) |
+| `syncIntervalMs` | `300000` | How often totals are pushed to the leaderboard |
+| `tools` | `[]` | Override tool detection (id, name, activityDirs, extensions) |
+
+## Join the global leaderboard (optional)
+
+1. Open a viberank server (self-host one in 2 minutes — see [`server/README.md`](./server/README.md)).
+2. Click **Log in with Discord** → your `/me` page shows an **agent token**.
+3. Put `serverUrl` and `accountToken` into `~/.viberank/config.json` and restart.
+
+The agent then pushes your *aggregate totals* every 5 minutes. The server credits
+only sanity-clamped deltas (you can't claim more time than actually elapsed), so
+the board stays fair. One board for everyone — the API/PRO/MAX badge is context,
+never a score multiplier.
+
+> Cursor, Gemini CLI and Aider detection is best-effort (session layouts vary by
+> version). If one isn't detected on your machine, override its `activityDirs`
+> via `tools` in the config.
 
 ## How scoring works
 
@@ -89,11 +109,13 @@ Your card appears on your profile whenever a tracked tool is active.
 
 ## Roadmap
 
-- **Phase 1 (this release)** — local agent, Discord card, active-time tracking,
+- **Phase 1 (done)** — local agent, Discord card, active-time tracking,
   personal tiers, local dashboard. Claude Code + Codex + OpenCode.
-- **Phase 2** — hosted backend, "Login with Discord", global leaderboard, plan
-  badges, combo board.
-- **Phase 3** — more tools, supporter cosmetics, polish.
+- **Phase 2 (done)** — backend with "Login with Discord", global leaderboard,
+  plan badges, anti-cheat ingest. See [`server/`](./server).
+- **Phase 3 (done)** — Cursor / Gemini CLI / Aider detection, achievements, CI,
+  Docker deploy.
+- **Next** — a hosted public instance, more tools, supporter cosmetics.
 
 ## Support
 
