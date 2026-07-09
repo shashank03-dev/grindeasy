@@ -53,8 +53,23 @@ Tracking works immediately, but the Discord card needs a free Application ID:
 
 1. Go to <https://discord.com/developers/applications> → **New Application** → name it `viberank`.
 2. Copy the **Application ID**.
-3. Under **Rich Presence → Art Assets**, upload an image named **`viberank`**
-   (512×512). Optionally add `pro`, `max`, `api` icons for the small badge.
+3. Under **Rich Presence → Art Assets**, upload the images from
+   [`assets/discord/`](./assets/discord) with these *exact* asset keys
+   (Discord asset keys aren't editable once saved, so get the name right on
+   upload):
+   | File | Asset key | Used as |
+   |---|---|---|
+   | `assets/discord/viberank.png` | `viberank` | large image |
+   | `assets/discord/api.png` | `api` | small badge, API-key plan |
+   | `assets/discord/pro.png` | `pro` | small badge, Pro plan |
+   | `assets/discord/max.png` | `max` | small badge, Max plan |
+
+   Optionally, under **Rich Presence → Art Assets → Cover Image**, upload
+   `assets/discord/invite-cover.png` (this is what shows on chat invites).
+   You can preview all of this live in Discord's own **Rich Presence
+   Visualizer** for your application before you ever run the agent. To
+   regenerate the PNGs from source (e.g. after tweaking colors), run
+   `node assets/discord/src/build.mjs`.
 4. Paste the ID into `~/.viberank/config.json`:
    ```json
    { "discordClientId": "YOUR_APPLICATION_ID" }

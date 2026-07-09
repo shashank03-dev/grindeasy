@@ -30,8 +30,23 @@ export interface Config {
   tools: ToolDef[];
 }
 
+/**
+ * viberank's own Discord application. Rich Presence client IDs are public
+ * identifiers, not secrets, and shipping ours means a new user gets a working
+ * card with zero setup — no Developer Portal, no art assets to upload.
+ *
+ * UNVERIFIED: Discord's terms have not been confirmed to permit one application
+ * serving Rich Presence for every user of a distributed tool. This is the single
+ * constant to change if that turns out to be disallowed; setting it back to ""
+ * restores the old per-user flow with no other code changes.
+ */
+export const OFFICIAL_DISCORD_APP_ID = "";
+
+/** The hosted leaderboard. Sync stays off until an account token is paired. */
+export const OFFICIAL_SERVER_URL = "https://viberank.dev";
+
 export const DEFAULT_CONFIG: Config = {
-  discordClientId: "",
+  discordClientId: OFFICIAL_DISCORD_APP_ID,
   pollIntervalMs: 5_000,
   activeWindowMs: 60_000,
   comboBucketMs: 5 * 60_000,
@@ -39,7 +54,10 @@ export const DEFAULT_CONFIG: Config = {
   donateUrl: "https://www.buymeacoffee.com/",
   declaredPlan: "pro",
   showIdlePresence: true,
-  serverUrl: "",
+  // A default server URL does not make the agent phone home: SyncClient stays
+  // disabled until accountToken is set, and that only happens after the user
+  // completes `viberank login` in a browser.
+  serverUrl: OFFICIAL_SERVER_URL,
   accountToken: "",
   syncIntervalMs: 5 * 60_000,
   tools: [],
@@ -71,4 +89,26 @@ export function loadConfig(home = homedir()): { config: Config; created: boolean
 
 export function configPath(home = homedir()): string {
   return join(dataDir(home), "config.json");
+}
+
+/**
+ * Merge changes into the on-disk config, preserving keys the user set by hand
+ * and any we don't know about. This is how `viberank login` stores the token it
+ * receives from pairing, so nobody ever edits this file themselves.
+ */
+export function updateConfig(patch: Partial<Config>, home = homedir()): Config {
+  const dir = dataDir(home);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, "config.json");
+
+  let existing: Partial<Config> = {};
+  try {
+    existing = JSON.parse(readFileSync(path, "utf8")) as Partial<Config>;
+  } catch {
+    // No readable config yet; the patch lands on top of the defaults.
+  }
+
+  const merged = { ...DEFAULT_CONFIG, ...existing, ...patch };
+  writeFileSync(path, JSON.stringify(merged, null, 2) + "\n", "utf8");
+  return merged;
 }

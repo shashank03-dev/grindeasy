@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { loadConfig, dataDir, configPath } from "./config.js";
+import { loadConfig, dataDir, configPath, updateConfig } from "./config.js";
+import { openBrowser, pair } from "./pair.js";
 import { detectPlan, planBadge } from "./plan.js";
 import { PresenceManager, REPO_URL } from "./presence.js";
 import { buildSnapshot } from "./snapshot.js";
@@ -10,23 +11,55 @@ import { computeTier } from "./tiers.js";
 import { detectAll, defaultTools } from "./tools.js";
 import { Tracker } from "./tracker.js";
 
+/**
+ * Only reachable when OFFICIAL_DISCORD_APP_ID is unset (self-hosters, or if
+ * Discord ever disallows a shared application). The happy path shows nothing.
+ */
 function printSetupHelp(): void {
   console.log(`
 ┌─ viberank setup ────────────────────────────────────────────┐
-  To show the Discord card you need a free Discord Application ID:
-    1. Open https://discord.com/developers/applications
-    2. "New Application" → name it viberank → copy the Application ID
-    3. Under "Rich Presence → Art Assets", upload an image named
-       "viberank" (and optionally "pro"/"max"/"api" plan icons)
-    4. Paste the ID into: ${configPath()}
-         "discordClientId": "PASTE_IT_HERE"
-    5. Make sure the Discord desktop app is running, then restart viberank
-  Tracking works without this — only the Discord card needs it.
+  No Discord Application ID is configured, so the card is off.
+  Tracking and the leaderboard still work without it.
+
+  To enable the card, create a free application at
+    https://discord.com/developers/applications
+  upload a Rich Presence art asset named "viberank", then set
+    "discordClientId" in ${configPath()}
 └─────────────────────────────────────────────────────────────┘
 `);
 }
 
+/**
+ * `viberank login` — pair this machine with the leaderboard. The user clicks one
+ * button in a browser; the agent writes its own token. No file editing.
+ */
+async function login(): Promise<void> {
+  const { config } = loadConfig();
+  if (!config.serverUrl) {
+    console.error("No serverUrl configured, so there is nothing to pair with.");
+    process.exit(1);
+  }
+
+  const token = await pair({
+    serverUrl: config.serverUrl,
+    onPrompt: (info) => {
+      console.log(`\n  Confirm this code in your browser:  ${info.userCode}\n`);
+      console.log(`  ${info.verifyUrl}\n`);
+      console.log(`  Waiting for you to authorize…`);
+      openBrowser(info.verifyUrl);
+    },
+  });
+
+  updateConfig({ accountToken: token });
+  console.log(`\n  ✓ Paired. Run \`viberank\` and your time starts counting.\n`);
+}
+
 async function main(): Promise<void> {
+  if (process.argv[2] === "login") {
+    await login();
+    return;
+  }
+
   const { config, created } = loadConfig();
   const dir = dataDir();
   const plan = detectPlan({ declaredPlan: config.declaredPlan });
@@ -64,7 +97,7 @@ async function main(): Promise<void> {
   console.log(`   tools     ${tools.map((t) => t.name).join(", ")}`);
   console.log(
     `   sync      ${
-      sync.enabled ? `→ ${config.serverUrl}` : "off — link a leaderboard account to enable"
+      sync.enabled ? `→ ${config.serverUrl}` : "off — run `viberank login` to join the board"
     }`,
   );
   console.log(`   repo      ${REPO_URL}`);
