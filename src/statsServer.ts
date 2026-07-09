@@ -23,9 +23,88 @@ function fmtHours(h: number): string {
   return `${h.toFixed(1)}h`;
 }
 
+function activeLabelOf(s: Snapshot): string {
+  return s.activeNow.length > 0 ? s.activeNow.join(" + ") : "Idle";
+}
+
+function nextLineOf(s: Snapshot): string {
+  return s.nextAtXp !== null
+    ? `${(s.nextAtXp - s.xp).toFixed(1)} XP to next tier`
+    : "Max tier reached";
+}
+
+function syncLineOf(s: Snapshot): string {
+  if (s.sync === null) return "Local dashboard · nothing here leaves your machine";
+  if (s.sync.status === "ok") return `Leaderboard sync ✓ · last ${s.sync.lastSyncAt ?? ""}`;
+  if (s.sync.status === "error") return `Leaderboard sync failed: ${s.sync.lastError ?? "unknown"}`;
+  return "Leaderboard sync pending…";
+}
+
+// Client-side updater: polls /api/stats and patches the DOM in place, so the
+// page never does a full reload (no flash, no scroll reset, hover state kept).
+// textContent is used throughout, so values are inserted safely without escaping.
+const DASHBOARD_SCRIPT = `
+const TOOL_LABELS = {
+  "claude-code": "Claude Code", codex: "Codex", opencode: "OpenCode",
+  cursor: "Cursor", "gemini-cli": "Gemini CLI", aider: "Aider"
+};
+function fmtHours(h) { return h < 1 ? Math.round(h * 60) + "m" : h.toFixed(1) + "h"; }
+function syncText(s) {
+  if (!s.sync) return "Local dashboard · nothing here leaves your machine";
+  if (s.sync.status === "ok") return "Leaderboard sync ✓ · last " + (s.sync.lastSyncAt || "");
+  if (s.sync.status === "error") return "Leaderboard sync failed: " + (s.sync.lastError || "unknown");
+  return "Leaderboard sync pending…";
+}
+function makeRow(label, value, muted) {
+  const el = document.createElement("div");
+  el.className = muted ? "row muted" : "row";
+  const a = document.createElement("span"); a.textContent = label;
+  const b = document.createElement("b"); b.textContent = value;
+  el.append(a, b); return el;
+}
+function set(id, v) { const n = document.getElementById(id); if (n) n.textContent = v; }
+function apply(s) {
+  const active = s.activeNow.length > 0;
+  const dot = document.querySelector(".brand .dot");
+  if (dot) dot.classList.toggle("active", active);
+  set("status", active ? s.activeNow.join(" + ") : "Idle");
+  set("tierGlyph", s.tierGlyph);
+  set("tierName", s.tierName);
+  set("badge", s.planBadge);
+  set("next", s.nextAtXp !== null ? (s.nextAtXp - s.xp).toFixed(1) + " XP to next tier" : "Max tier reached");
+  set("statHours", fmtHours(s.totalHours));
+  set("statCombos", String(s.combos));
+  set("statStreak", s.streakDays + "🔥");
+  set("foot", syncText(s));
+  const bar = document.getElementById("barFill");
+  if (bar) bar.style.width = s.progressPct.toFixed(1) + "%";
+  const chips = document.getElementById("chips");
+  if (chips) chips.replaceChildren.apply(chips, s.achievements.map(function (a) {
+    const el = document.createElement("span");
+    el.className = a.earned ? "chip on" : "chip";
+    el.title = a.detail; el.textContent = a.label; return el;
+  }));
+  const rows = document.getElementById("rows");
+  if (rows) {
+    if (s.perTool.length) {
+      rows.replaceChildren.apply(rows, s.perTool.map(function (t) {
+        return makeRow(TOOL_LABELS[t.id] || t.id, fmtHours(t.hours), false);
+      }));
+    } else {
+      rows.replaceChildren(makeRow("No activity yet — start coding", "0m", true));
+    }
+  }
+}
+async function tick() {
+  try {
+    const r = await fetch("/api/stats", { cache: "no-store" });
+    if (r.ok) apply(await r.json());
+  } catch (e) { /* server restarting; keep the last good view */ }
+}
+setInterval(tick, 5000);
+`;
+
 export function renderPage(s: Snapshot): string {
-  const activeLabel =
-    s.activeNow.length > 0 ? esc(s.activeNow.join(" + ")) : "Idle";
   const toolRows = s.perTool.length
     ? s.perTool
         .map(
@@ -37,11 +116,6 @@ export function renderPage(s: Snapshot): string {
         .join("")
     : `<div class="row muted"><span>No activity yet — start coding</span><b>0m</b></div>`;
 
-  const nextLine =
-    s.nextAtXp !== null
-      ? `${(s.nextAtXp - s.xp).toFixed(1)} XP to next tier`
-      : "Max tier reached";
-
   const chips = s.achievements
     .map(
       (a) =>
@@ -49,20 +123,11 @@ export function renderPage(s: Snapshot): string {
     )
     .join("");
 
-  const syncLine =
-    s.sync === null
-      ? "Local dashboard · nothing here leaves your machine"
-      : s.sync.status === "ok"
-        ? `Leaderboard sync ✓ · last ${esc(s.sync.lastSyncAt ?? "")}`
-        : s.sync.status === "error"
-          ? `Leaderboard sync failed: ${esc(s.sync.lastError ?? "unknown")}`
-          : "Leaderboard sync pending…";
-
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta http-equiv="refresh" content="5"/>
+<noscript><meta http-equiv="refresh" content="15"/></noscript>
 <title>viberank</title>
 <style>
   :root { color-scheme: dark; }
@@ -74,7 +139,9 @@ export function renderPage(s: Snapshot): string {
     border-radius: 18px; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .3px; }
   .brand .dot { width: 10px; height: 10px; border-radius: 50%;
-    background: ${s.activeNow.length ? "#4ade80" : "#6b7280"}; box-shadow: 0 0 12px ${s.activeNow.length ? "#4ade80" : "transparent"}; }
+    background: #6b7280; box-shadow: 0 0 12px transparent;
+    transition: background .4s ease, box-shadow .4s ease; }
+  .brand .dot.active { background: #4ade80; box-shadow: 0 0 12px #4ade80; }
   .status { color: #9aa3b8; font-size: 13px; margin-top: 2px; }
   .tier { margin: 22px 0 6px; display: flex; align-items: baseline; gap: 10px; }
   .tier .glyph { font-size: 30px; }
@@ -83,7 +150,7 @@ export function renderPage(s: Snapshot): string {
     padding: 4px 10px; border: 1px solid #33405e; border-radius: 999px; color: #b9c6ff; }
   .bar { height: 8px; background: #212739; border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
   .bar > i { display: block; height: 100%; width: ${s.progressPct.toFixed(1)}%;
-    background: linear-gradient(90deg, #7c8cff, #b06bff); }
+    background: linear-gradient(90deg, #7c8cff, #b06bff); transition: width .5s ease; }
   .next { color: #8b93a7; font-size: 12px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 22px 0; }
   .stat { background: #0f1320; border: 1px solid #212739; border-radius: 12px; padding: 12px; text-align: center; }
@@ -103,26 +170,28 @@ export function renderPage(s: Snapshot): string {
 </style></head>
 <body><div class="card">
   <div>
-    <div class="brand"><span class="dot"></span> viberank</div>
-    <div class="status">${activeLabel}</div>
+    <div class="brand"><span class="dot${s.activeNow.length ? " active" : ""}"></span> viberank</div>
+    <div class="status" id="status">${esc(activeLabelOf(s))}</div>
   </div>
   <div class="tier">
-    <span class="glyph">${esc(s.tierGlyph)}</span>
-    <span class="name">${esc(s.tierName)}</span>
-    <span class="badge">${esc(s.planBadge)}</span>
+    <span class="glyph" id="tierGlyph">${esc(s.tierGlyph)}</span>
+    <span class="name" id="tierName">${esc(s.tierName)}</span>
+    <span class="badge" id="badge">${esc(s.planBadge)}</span>
   </div>
-  <div class="bar"><i></i></div>
-  <div class="next">${esc(nextLine)}</div>
+  <div class="bar"><i id="barFill"></i></div>
+  <div class="next" id="next">${esc(nextLineOf(s))}</div>
   <div class="grid">
-    <div class="stat"><b>${fmtHours(s.totalHours)}</b><span>Active</span></div>
-    <div class="stat"><b>${s.combos}</b><span>Combos</span></div>
-    <div class="stat"><b>${s.streakDays}🔥</b><span>Streak</span></div>
+    <div class="stat"><b id="statHours">${fmtHours(s.totalHours)}</b><span>Active</span></div>
+    <div class="stat"><b id="statCombos">${s.combos}</b><span>Combos</span></div>
+    <div class="stat"><b id="statStreak">${s.streakDays}🔥</b><span>Streak</span></div>
   </div>
-  <div class="chips">${chips}</div>
-  <div class="rows">${toolRows}</div>
+  <div class="chips" id="chips">${chips}</div>
+  <div class="rows" id="rows">${toolRows}</div>
   <a class="donate" href="${esc(s.donateUrl)}" target="_blank" rel="noopener">☕ Support viberank</a>
-  <div class="foot">${syncLine}</div>
-</div></body></html>`;
+  <div class="foot" id="foot">${esc(syncLineOf(s))}</div>
+</div>
+<script>${DASHBOARD_SCRIPT}</script>
+</body></html>`;
 }
 
 /** Start the local stats web server. Returns the http.Server. */

@@ -22,6 +22,58 @@ function fmtHours(h: number): string {
   return `${h.toFixed(1)}h`;
 }
 
+// Client-side updater for the leaderboard: polls /api/leaderboard and rebuilds
+// the table body in place, so the board reflects new syncs without a full page
+// reload. textContent is used for all values, so no escaping is needed.
+const BOARD_SCRIPT = `
+function fmtHours(h) { return h < 1 ? Math.round(h * 60) + "m" : h.toFixed(1) + "h"; }
+function cell(cls, text) {
+  const td = document.createElement("td");
+  if (cls) td.className = cls;
+  td.textContent = text; return td;
+}
+function renderBoard(entries) {
+  const tb = document.getElementById("board");
+  if (!tb) return;
+  if (!entries.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td"); td.colSpan = 7;
+    const d = document.createElement("div"); d.className = "empty";
+    d.textContent = "No hunters on the board yet — be the first.";
+    td.append(d); tr.append(td); tb.replaceChildren(tr); return;
+  }
+  tb.replaceChildren.apply(tb, entries.map(function (e) {
+    const tr = document.createElement("tr");
+    tr.append(cell("rank" + (e.rank <= 3 ? " top" : ""), "#" + e.rank));
+    const userTd = document.createElement("td");
+    const span = document.createElement("span"); span.className = "user";
+    if (e.avatarUrl) {
+      const img = document.createElement("img"); img.src = e.avatarUrl; img.alt = ""; span.append(img);
+    } else {
+      const ph = document.createElement("span"); ph.className = "ph"; span.append(ph);
+    }
+    span.append(document.createTextNode(e.username));
+    userTd.append(span); tr.append(userTd);
+    tr.append(cell("tier", e.tierGlyph + " " + e.tierName));
+    const badgeTd = document.createElement("td");
+    const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = e.planBadge;
+    badgeTd.append(badge); tr.append(badgeTd);
+    tr.append(cell("num", fmtHours(e.hours)));
+    tr.append(cell("num", String(e.combos)));
+    const xpTd = document.createElement("td"); xpTd.className = "num";
+    const b = document.createElement("b"); b.textContent = e.xp.toFixed(1); xpTd.append(b); tr.append(xpTd);
+    return tr;
+  }));
+}
+async function tickBoard() {
+  try {
+    const r = await fetch("/api/leaderboard", { cache: "no-store" });
+    if (r.ok) { const d = await r.json(); renderBoard(d.entries || []); }
+  } catch (e) { /* server restarting; keep the last good board */ }
+}
+setInterval(tickBoard, 5000);
+`;
+
 function shell(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en"><head>
@@ -124,9 +176,10 @@ export function renderLanding(entries: BoardEntry[], loggedIn: boolean): string 
     <table>
       <thead><tr><th>Rank</th><th>Hunter</th><th>Tier</th><th>Plan</th>
         <th style="text-align:right">Active</th><th style="text-align:right">Combos</th><th style="text-align:right">XP</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody id="board">${rows}</tbody>
     </table>
-  </div>`,
+  </div>
+  <script>${BOARD_SCRIPT}</script>`,
   );
 }
 
