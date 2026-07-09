@@ -7,3 +7,7 @@ dist/
 coverage/
 # local runtime data (never committed)
 .viberank/
+
+# web
+web/.next/
+web/node_modules/
