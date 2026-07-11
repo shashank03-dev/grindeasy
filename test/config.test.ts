@@ -6,6 +6,7 @@ import {
   DEFAULT_CONFIG,
   MIN_SYNC_INTERVAL_MS,
   OFFICIAL_DISCORD_APP_ID,
+  OFFICIAL_SERVER_URL,
   configPath,
   loadConfig,
   updateConfig,
@@ -34,10 +35,19 @@ describe("loadConfig", () => {
   });
 
   it("does not enable sync just because a server URL is configured", () => {
-    const { config } = loadConfig(fakeHome());
-    expect(config.serverUrl).not.toBe("");
+    // Knowing where the board lives is not consent to send anything to it:
+    // sync waits on a token, which only a browser pairing can produce.
+    const { config } = loadConfig(fakeHome({ serverUrl: "https://board.example" }));
+    expect(config.serverUrl).toBe("https://board.example");
     expect(config.accountToken).toBe("");
     expect(config.askedToJoinBoard).toBe(false);
+  });
+
+  it("ships with no board configured, so a fresh install syncs nowhere", () => {
+    // OFFICIAL_SERVER_URL is empty until the board has a domain we control.
+    const { config } = loadConfig(fakeHome());
+    expect(config.serverUrl).toBe(OFFICIAL_SERVER_URL);
+    expect(config.accountToken).toBe("");
   });
 
   it("clamps hand-edited sync intervals to what the server accepts", () => {
