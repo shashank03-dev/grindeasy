@@ -10,6 +10,7 @@
 [![node](https://img.shields.io/node/v/grindeasy?style=flat-square&color=f2b705&logo=nodedotjs&logoColor=white&label=node)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/grindeasy?style=flat-square&color=f2b705&label=license)](./LICENSE)
 [![local-first](https://img.shields.io/badge/telemetry-opt--in-f2b705?style=flat-square)](#privacy-first)
+[![website](https://img.shields.io/badge/grindeasy.tech-f2b705?style=flat-square&logo=googlechrome&logoColor=white&label=site)](https://grindeasy.tech)
 
 </div>
 
@@ -132,6 +133,8 @@ To rebuild the PNGs from source, run `node assets/discord/src/build.mjs`.
 </details>
 
 ## The leaderboard
+
+The board is live at **[grindeasy.tech](https://grindeasy.tech)**.
 
 Opt-in. Nothing leaves your machine until you say yes. The agent offers once on
 first run; if you decline, or you're not on a terminal, you can join later:
