@@ -11,7 +11,7 @@ function jsonResponse(body: unknown): Response {
 const START = {
   deviceCode: "device-secret",
   userCode: "KXQ4-9BTM",
-  verifyUrl: "https://viberank.dev/pair?code=KXQ4-9BTM",
+  verifyUrl: "https://board.example/pair?code=KXQ4-9BTM",
   expiresInS: 600,
   intervalS: 3,
 };
@@ -21,15 +21,15 @@ const noSleep = () => Promise.resolve();
 describe("startPairing", () => {
   it("posts to /api/pair/start and tolerates a trailing slash on serverUrl", async () => {
     const fetchFn = vi.fn(async () => jsonResponse(START));
-    const result = await startPairing({ serverUrl: "https://viberank.dev/", fetchFn });
+    const result = await startPairing({ serverUrl: "https://board.example/", fetchFn });
 
-    expect(fetchFn).toHaveBeenCalledWith("https://viberank.dev/api/pair/start", { method: "POST" });
+    expect(fetchFn).toHaveBeenCalledWith("https://board.example/api/pair/start", { method: "POST" });
     expect(result.userCode).toBe("KXQ4-9BTM");
   });
 
   it("throws when the server rejects the request", async () => {
     const fetchFn = vi.fn(async () => new Response("nope", { status: 500 }));
-    await expect(startPairing({ serverUrl: "https://viberank.dev", fetchFn })).rejects.toThrow(
+    await expect(startPairing({ serverUrl: "https://board.example", fetchFn })).rejects.toThrow(
       /HTTP 500/,
     );
   });
@@ -38,7 +38,7 @@ describe("startPairing", () => {
 describe("pollOnce", () => {
   it("sends the device code and a device label", async () => {
     const fetchFn = vi.fn(async () => jsonResponse({ status: "pending" }));
-    await pollOnce({ serverUrl: "https://viberank.dev", fetchFn }, "device-secret");
+    await pollOnce({ serverUrl: "https://board.example", fetchFn }, "device-secret");
 
     const [, init] = fetchFn.mock.calls[0]!;
     const body = JSON.parse(String((init as RequestInit).body));
@@ -63,7 +63,7 @@ describe("pair", () => {
 
     const onPrompt = vi.fn();
     const token = await pair({
-      serverUrl: "https://viberank.dev",
+      serverUrl: "https://board.example",
       fetchFn: fetchFn as unknown as typeof fetch,
       sleep: noSleep,
       onPrompt,
@@ -84,7 +84,7 @@ describe("pair", () => {
 
     await expect(
       pair({
-        serverUrl: "https://viberank.dev",
+        serverUrl: "https://board.example",
         fetchFn: fetchFn as unknown as typeof fetch,
         sleep: noSleep,
       }),
@@ -102,7 +102,7 @@ describe("pair", () => {
     let clock = 0;
     await expect(
       pair({
-        serverUrl: "https://viberank.dev",
+        serverUrl: "https://board.example",
         fetchFn: fetchFn as unknown as typeof fetch,
         sleep: noSleep,
         now: () => (clock += 2500),

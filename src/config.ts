@@ -59,8 +59,15 @@ export interface Config {
  */
 export const OFFICIAL_DISCORD_APP_ID = "";
 
-/** The hosted leaderboard. Sync stays off until an account token is paired. */
-export const OFFICIAL_SERVER_URL = "https://viberank.dev";
+/**
+ * The hosted leaderboard. Empty until the board has a home: the agent must
+ * never default to syncing anyone's stats to a domain we don't control.
+ *
+ * With this empty, `offerLeaderboard` never fires and SyncClient stays off, so
+ * the card and local tracking work exactly as they do with it set. Fill it in
+ * once the domain is registered and the server is deployed — no other change.
+ */
+export const OFFICIAL_SERVER_URL = "";
 
 /**
  * The server refuses more than one ingest per token per minute (its
@@ -78,9 +85,9 @@ export const DEFAULT_CONFIG: Config = {
   donateUrl: "https://www.buymeacoffee.com/",
   declaredPlan: "pro",
   showIdlePresence: true,
-  // A default server URL does not make the agent phone home: SyncClient stays
-  // disabled until accountToken is set, and that only happens after the user
-  // completes `viberank login` in a browser.
+  // Even once this is set, it does not make the agent phone home: SyncClient
+  // stays disabled until accountToken is set, and that only happens after the
+  // user completes `viberank login` in a browser.
   serverUrl: OFFICIAL_SERVER_URL,
   accountToken: "",
   syncIntervalMs: 5 * 60_000,
