@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankBoard, type BoardRow } from "./leaderboard";
+import { rankBoard, rankOf, type BoardRow } from "./leaderboard";
 
 const H = 3_600_000;
 
@@ -50,5 +50,32 @@ describe("rankBoard", () => {
       "https://cdn.discordapp.com/avatars/42/abc.png?size=64",
     );
     expect(entries.find((e) => e.username === "without")?.avatarUrl).toBeNull();
+  });
+});
+
+describe("rankOf", () => {
+  it("gives a player their standing out of the whole field", () => {
+    const rows = [
+      row({ discordId: "a", username: "ana", activeMs: 50 * H }),
+      row({ discordId: "b", username: "bo", activeMs: 10 * H }),
+      row({ discordId: "c", username: "cy", activeMs: 30 * H }),
+    ];
+    expect(rankOf(rows, "a")).toEqual({ rank: 1, totalPlayers: 3 });
+    expect(rankOf(rows, "c")).toEqual({ rank: 2, totalPlayers: 3 });
+    expect(rankOf(rows, "b")).toEqual({ rank: 3, totalPlayers: 3 });
+  });
+
+  it("ranks players below the visible top 100, who are most of them", () => {
+    // 150 players; ours is the 120th best. The public board only shows 100, but
+    // their card still has to say #120 — not nothing.
+    const rows = Array.from({ length: 150 }, (_, i) =>
+      row({ discordId: `u${i}`, username: `u${i}`, activeMs: (150 - i) * H }),
+    );
+    expect(rankOf(rows, "u119")).toEqual({ rank: 120, totalPlayers: 150 });
+    expect(rankBoard(rows)).toHaveLength(100);
+  });
+
+  it("returns null for someone who has never synced", () => {
+    expect(rankOf([row({ discordId: "a" })], "nobody")).toBeNull();
   });
 });
