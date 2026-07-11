@@ -33,7 +33,7 @@ export function defaultTools(home = homedir()): ToolDef[] {
     },
     // The three below are best-effort: session dir layouts vary by version and
     // platform. A wrong path is harmless (the tool just never shows active) and
-    // any of them can be overridden via `tools` in ~/.grindboard/config.json.
+    // any of them can be overridden via `tools` in ~/.grindeasy/config.json.
     {
       id: "cursor",
       name: "Cursor",

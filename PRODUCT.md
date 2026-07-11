@@ -1,4 +1,4 @@
-# grindboard
+# grindeasy
 
 ## What it is
 

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "grindboard — the global AI coding leaderboard",
+  title: "grindeasy — the global AI coding leaderboard",
   description:
     "Track active coding time across Claude Code, Codex, Cursor and more. Climb the tiers, show your rank on your Discord profile.",
 };

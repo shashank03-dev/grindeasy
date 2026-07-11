@@ -1,11 +1,11 @@
-# grindboard — Design Spec
+# grindeasy — Design Spec
 
 Status: Phases 1–3 implemented.
 
 ## Problem / product
 
 Developers who use AI coding tools (Claude Code, Codex, OpenCode) have no way to
-show that activity on Discord the way Spotify/Epic show theirs. grindboard fills
+show that activity on Discord the way Spotify/Epic show theirs. grindeasy fills
 that gap with a local agent that drives a Discord Rich Presence card, tracks
 personal tiers, and (Phase 2) a global leaderboard. It is free and funded by
 voluntary donations (Razorpay / Buy Me a Coffee).
@@ -13,7 +13,7 @@ voluntary donations (Razorpay / Buy Me a Coffee).
 ### Why not just use Discord's "Connections" list?
 Those tiles (Spotify, Epic, Xbox…) are curated official partnerships and cannot
 be self-added. **Rich Presence** is the open API any developer can build on, and
-is what grindboard uses.
+is what grindeasy uses.
 
 ## Decisions (from brainstorming)
 
@@ -25,7 +25,7 @@ is what grindboard uses.
 | Plan badge | Auto-detect **API vs subscription**; subscription users declare Pro/Max, trusted as-is |
 | Identity | **Discord OAuth** (Phase 2) |
 | Money | **Pure donations**, no paywalls, no entitlement logic |
-| Name | `grindboard` |
+| Name | `grindeasy` |
 | Stack | TypeScript everywhere; Node agent, (Phase 2) Node backend + Postgres + Next.js |
 
 ## Architecture
@@ -44,7 +44,7 @@ Three parts, built in phases:
 
 | Module | Responsibility |
 |---|---|
-| `config.ts` | Load/create `~/.grindboard/config.json` |
+| `config.ts` | Load/create `~/.grindeasy/config.json` |
 | `fsScan.ts` | Newest file mtime under roots (metadata only, never contents) |
 | `tools.ts` | Tool definitions + per-tool active detection |
 | `tracker.ts` | Fold detection passes into cumulative active time + combos |

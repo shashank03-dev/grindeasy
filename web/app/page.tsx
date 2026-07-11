@@ -26,7 +26,7 @@ export default async function LeaderboardPage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-16">
       <header className="mb-12">
-        <h1 className="font-mono text-sm font-medium tracking-wide text-primary">grindboard</h1>
+        <h1 className="font-mono text-sm font-medium tracking-wide text-primary">grindeasy</h1>
         <p className="mt-3 max-w-[62ch] text-2xl font-semibold tracking-tight text-foreground">
           Ranked by time actually spent coding with AI tools.
         </p>
@@ -35,7 +35,7 @@ export default async function LeaderboardPage() {
           same five-minute window. Your plan is shown for context and never changes your score.
         </p>
         <code className="mt-6 inline-block rounded border border-border bg-card px-3 py-2 font-mono text-sm text-foreground">
-          npx grindboard
+          npx grindeasy
         </code>
       </header>
 
@@ -121,8 +121,8 @@ function EmptyBoard() {
     <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
       <p className="text-sm font-medium text-foreground">Nobody has paired an agent yet.</p>
       <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted-foreground">
-        Run <code className="font-mono text-foreground">npx grindboard</code> in a terminal, then{" "}
-        <code className="font-mono text-foreground">grindboard login</code> to claim the first place
+        Run <code className="font-mono text-foreground">npx grindeasy</code> in a terminal, then{" "}
+        <code className="font-mono text-foreground">grindeasy login</code> to claim the first place
         on this board.
       </p>
     </div>

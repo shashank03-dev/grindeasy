@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ToolDef } from "./types.js";
 
-/** What the data directory was called when the project was named viberank. */
-const LEGACY_DIR = ".viberank";
+/** What the data directory was called under this project's previous names, oldest first. */
+const LEGACY_DIRS = [".viberank", ".grindboard"];
 
 export interface Config {
   /** Discord Application (client) ID from the Developer Portal. Required for the card. */
@@ -23,7 +23,7 @@ export interface Config {
   declaredPlan: "pro" | "max";
   /** Keep the Discord card up (showing tier) even when no tool is active. */
   showIdlePresence: boolean;
-  /** Leaderboard server base URL, e.g. https://grindboard.example. Empty = sync off. */
+  /** Leaderboard server base URL, e.g. https://grindeasy.example. Empty = sync off. */
   serverUrl: string;
   /** Agent token from your /me page on the leaderboard server. Empty = sync off. */
   accountToken: string;
@@ -41,15 +41,15 @@ export interface Config {
 }
 
 /**
- * grindboard's own Discord application. Rich Presence client IDs are public
+ * grindeasy's own Discord application. Rich Presence client IDs are public
  * identifiers, not secrets, and shipping ours means a new user gets a working
  * card with zero setup — no Developer Portal, no art assets to upload.
  *
  * TO FILL IN (one-time, maintainer only): create the application at
- * https://discord.com/developers/applications, name it "grindboard" (this is the
+ * https://discord.com/developers/applications, name it "grindeasy" (this is the
  * name Discord shows on every user's profile), upload the PNGs from
  * assets/discord/ under Rich Presence → Art Assets with the exact keys
- * "grindboard", "api", "pro", "max", then paste the Application ID here. Until
+ * "grindeasy", "api", "pro", "max", then paste the Application ID here. Until
  * this is set, everything still works — tracking, leaderboard, rank — but the
  * Discord card stays off and printSetupHelp() tells the user why.
  *
@@ -67,7 +67,7 @@ export const OFFICIAL_DISCORD_APP_ID = "1525448643426123826";
  *
  * This is a Vercel-assigned URL, not a domain we own — moving off Vercel means
  * every already-installed agent keeps calling an address we no longer control.
- * Point grindboard.tech here and change this constant BEFORE publishing to npm,
+ * Point grindeasy.tech here and change this constant BEFORE publishing to npm,
  * while the only installs are ours.
  */
 export const OFFICIAL_SERVER_URL = "https://grindboard-iota.vercel.app";
@@ -90,7 +90,7 @@ export const DEFAULT_CONFIG: Config = {
   showIdlePresence: true,
   // Even once this is set, it does not make the agent phone home: SyncClient
   // stays disabled until accountToken is set, and that only happens after the
-  // user completes `grindboard login` in a browser.
+  // user completes `grindeasy login` in a browser.
   serverUrl: OFFICIAL_SERVER_URL,
   accountToken: "",
   syncIntervalMs: 5 * 60_000,
@@ -99,9 +99,9 @@ export const DEFAULT_CONFIG: Config = {
   tools: [],
 };
 
-/** Base directory for all grindboard runtime data. */
+/** Base directory for all grindeasy runtime data. */
 export function dataDir(home = homedir()): string {
-  return join(home, ".grindboard");
+  return join(home, ".grindeasy");
 }
 
 /**
@@ -110,24 +110,29 @@ export function dataDir(home = homedir()): string {
  * to Bronze. Moves the directory rather than copying, so it runs exactly once
  * and there is no stale second copy to drift.
  *
- * Never overwrites: if the new directory already exists, the legacy one is left
- * alone and ignored.
+ * Checks newest legacy name first, since that's the one most likely to exist.
+ * Never overwrites: if the new directory already exists, every legacy one is
+ * left alone and ignored.
  */
 export function migrateLegacyDir(home = homedir()): void {
-  const legacy = join(home, LEGACY_DIR);
   const current = dataDir(home);
-  if (!existsSync(legacy) || existsSync(current)) return;
-  try {
-    renameSync(legacy, current);
-    console.log(`[grindboard] moved your stats from ~/${LEGACY_DIR} to ~/.grindboard`);
-  } catch {
-    // A cross-device rename (or a permissions problem) is not worth crashing
-    // over: the user simply starts fresh, which is the pre-migration behaviour.
+  if (existsSync(current)) return;
+  for (const legacyName of [...LEGACY_DIRS].reverse()) {
+    const legacy = join(home, legacyName);
+    if (!existsSync(legacy)) continue;
+    try {
+      renameSync(legacy, current);
+      console.log(`[grindeasy] moved your stats from ~/${legacyName} to ~/.grindeasy`);
+    } catch {
+      // A cross-device rename (or a permissions problem) is not worth crashing
+      // over: the user simply starts fresh, which is the pre-migration behaviour.
+    }
+    return;
   }
 }
 
 /**
- * Load config from ~/.grindboard/config.json, creating a default file on first
+ * Load config from ~/.grindeasy/config.json, creating a default file on first
  * run. Returns the config plus whether it was just created (so the caller can
  * print setup instructions).
  */
@@ -163,7 +168,7 @@ export function configPath(home = homedir()): string {
 
 /**
  * Merge changes into the on-disk config, preserving keys the user set by hand
- * and any we don't know about. This is how `grindboard login` stores the token it
+ * and any we don't know about. This is how `grindeasy login` stores the token it
  * receives from pairing, so nobody ever edits this file themselves.
  */
 export function updateConfig(patch: Partial<Config>, home = homedir()): Config {
