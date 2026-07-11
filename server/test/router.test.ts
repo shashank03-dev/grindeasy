@@ -97,6 +97,39 @@ describe("router", () => {
     });
   });
 
+  it("returns the caller's standing so the agent can put it on the card", async () => {
+    // One rival well ahead of us, so our rank is a real number, not just 1.
+    const rival = store.upsertUser("200", "rival", null);
+    store.creditTool(rival.id, "claude-code", 100 * 3_600_000);
+
+    const user = store.upsertUser("100", "alice", null);
+    const token = store.getOrCreateAgentToken(user.id);
+
+    const payload = (totalMs: number) => ({
+      version: 1 as const,
+      plan: "pro" as const,
+      toolTotalsMs: { "claude-code": totalMs },
+      totalCombos: 0,
+      agentVersion: "t",
+    });
+
+    const first = (await (await ingest(token, payload(0))).json()) as {
+      rank: number;
+      totalPlayers: number;
+    };
+    expect(first).toMatchObject({ rank: 2, totalPlayers: 2 });
+
+    // Out-earn the rival and the very next sync tells us we took the lead.
+    clock += 5 * MIN;
+    const second = (await (await ingest(token, payload(5 * MIN))).json()) as { rank: number };
+    expect(second.rank).toBe(2);
+
+    store.creditTool(user.id, "claude-code", 200 * 3_600_000);
+    clock += 5 * MIN;
+    const third = (await (await ingest(token, payload(10 * MIN))).json()) as { rank: number };
+    expect(third.rank).toBe(1);
+  });
+
   it("rate limits back-to-back ingests with 429 + retry-after", async () => {
     const user = store.upsertUser("100", "alice", null);
     const token = store.getOrCreateAgentToken(user.id);
@@ -130,5 +163,114 @@ describe("router", () => {
     const res = await fetch(`${base}/me`, { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/auth/login");
+  });
+});
+
+describe("device pairing", () => {
+  function startPair() {
+    return fetch(`${base}/api/pair/start`, { method: "POST" });
+  }
+  function poll(deviceCode: string) {
+    return fetch(`${base}/api/pair/poll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceCode, label: "laptop (linux)" }),
+    });
+  }
+  function approve(code: string, session: string) {
+    return fetch(`${base}/pair`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        cookie: `vr_session=${session}`,
+      },
+      body: new URLSearchParams({ code }).toString(),
+      redirect: "manual",
+    });
+  }
+
+  it("pairs an agent end to end without the user copying a token", async () => {
+    const user = store.upsertUser("100", "alice", null);
+    const session = store.createSession(user.id);
+
+    const start = (await (await startPair()).json()) as {
+      deviceCode: string;
+      userCode: string;
+      verifyUrl: string;
+      intervalS: number;
+    };
+    expect(start.userCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(start.verifyUrl).toContain(`/pair?code=${start.userCode}`);
+
+    // Nobody has approved yet.
+    expect(await (await poll(start.deviceCode)).json()).toEqual({ status: "pending" });
+
+    // The human approves in the browser.
+    expect((await approve(start.userCode, session)).status).toBe(200);
+
+    // The agent collects its own token.
+    const ready = (await (await poll(start.deviceCode)).json()) as {
+      status: string;
+      accountToken: string;
+    };
+    expect(ready.status).toBe("ready");
+    expect(ready.accountToken).toBe(store.getOrCreateAgentToken(user.id));
+
+    // And that token actually works for ingest.
+    const res = await ingest(ready.accountToken, {
+      version: 1,
+      plan: "pro",
+      toolTotalsMs: { "claude-code": 0 },
+      totalCombos: 0,
+      agentVersion: "t",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("burns the code, so a stolen device code can't be replayed", async () => {
+    const user = store.upsertUser("100", "alice", null);
+    const session = store.createSession(user.id);
+    const start = (await (await startPair()).json()) as { deviceCode: string; userCode: string };
+
+    await approve(start.userCode, session);
+    expect(((await (await poll(start.deviceCode)).json()) as { status: string }).status).toBe("ready");
+    expect(await (await poll(start.deviceCode)).json()).toEqual({ status: "expired" });
+  });
+
+  it("expires a code nobody approved in time", async () => {
+    const start = (await (await startPair()).json()) as { deviceCode: string };
+    clock += 11 * MIN;
+    expect(await (await poll(start.deviceCode)).json()).toEqual({ status: "expired" });
+  });
+
+  it("refuses an expired code at approval time", async () => {
+    const user = store.upsertUser("100", "alice", null);
+    const session = store.createSession(user.id);
+    const start = (await (await startPair()).json()) as { userCode: string };
+
+    clock += 11 * MIN;
+    expect((await approve(start.userCode, session)).status).toBe(400);
+  });
+
+  it("rejects a made-up code", async () => {
+    const user = store.upsertUser("100", "alice", null);
+    const session = store.createSession(user.id);
+    expect((await approve("ZZZZ-ZZZZ", session)).status).toBe(400);
+  });
+
+  it("treats an unknown device code as expired, not as someone else's", async () => {
+    expect(await (await poll("deadbeef")).json()).toEqual({ status: "expired" });
+  });
+
+  it("sends an anonymous visitor to log in first, keeping the code", async () => {
+    const res = await fetch(`${base}/pair?code=ABCD-EFGH`, { redirect: "manual" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/auth/login?next=%2Fpair%3Fcode%3DABCD-EFGH");
+  });
+
+  it("will not bounce a login through an attacker's URL", async () => {
+    const res = await fetch(`${base}/auth/login?next=//evil.example/steal`, { redirect: "manual" });
+    const cookies = res.headers.getSetCookie().join(";");
+    expect(cookies).not.toContain("evil.example");
   });
 });

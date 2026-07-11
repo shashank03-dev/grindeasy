@@ -10,6 +10,12 @@ export interface PresenceState {
   plan: Plan;
   /** When the current active session started, or null if idle. */
   sessionStartMs: number | null;
+  /**
+   * Board position from the last successful sync, or null when the user hasn't
+   * joined the board, sync is off, or the server is unreachable. Null renders
+   * the card exactly as it looked before rank existed.
+   */
+  rank: number | null;
 }
 
 export interface PresenceOptions {
@@ -104,7 +110,8 @@ export function buildActivity(state: PresenceState, opts: PresenceOptions) {
   const isActive = state.activeToolNames.length > 0;
   if (!isActive && !opts.showIdlePresence) return null;
 
-  const tierLine = `${state.tier.glyph} ${state.tier.name} · ${planBadge(state.plan)}`;
+  const rankPrefix = state.rank !== null ? `#${state.rank} on viberank · ` : "";
+  const tierLine = `${rankPrefix}${state.tier.glyph} ${state.tier.name} · ${planBadge(state.plan)}`;
   const details = isActive
     ? `Coding · ${state.activeToolNames.join(" + ")}`.slice(0, 128)
     : "Idle";

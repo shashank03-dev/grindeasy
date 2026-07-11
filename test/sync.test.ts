@@ -9,8 +9,8 @@ function statsWith(activeMs: number, combos = 0) {
   return s;
 }
 
-function okFetch() {
-  return vi.fn(async () => new Response("{}", { status: 200 }));
+function okFetch(body: unknown = {}) {
+  return vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
 }
 
 describe("buildPayload", () => {
@@ -26,7 +26,12 @@ describe("buildPayload", () => {
 });
 
 describe("SyncClient", () => {
-  const opts = { serverUrl: "https://vr.example/", accountToken: "tok", syncIntervalMs: 300_000 };
+  const opts = {
+    serverUrl: "https://vr.example/",
+    accountToken: "tok",
+    syncIntervalMs: 300_000,
+    activeSyncIntervalMs: 60_000,
+  };
 
   it("is disabled without serverUrl or accountToken", async () => {
     const fetchFn = okFetch();
@@ -80,5 +85,66 @@ describe("SyncClient", () => {
     const sync = new SyncClient({ ...opts, fetchFn });
     await sync.maybeSync(statsWith(1), "pro", 1_000_000);
     expect(sync.state).toMatchObject({ status: "error", lastError: "HTTP 401" });
+  });
+
+  it("syncs on the short interval while a tool is active", async () => {
+    const fetchFn = okFetch();
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000, true);
+    // Too soon even for the active interval.
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000 + 59_000, true);
+    expect(fetchFn).toHaveBeenCalledOnce();
+    // A minute of coding later, the board hears about it.
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000 + 60_000, true);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("backs off to the idle interval when nothing is active", async () => {
+    const fetchFn = okFetch();
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000, false);
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000 + 60_000, false);
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("takes the rank from the ingest response", async () => {
+    const fetchFn = okFetch({ ok: true, rank: 12, totalPlayers: 840 });
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000);
+    expect(sync.state).toMatchObject({ status: "ok", rank: 12, totalPlayers: 840 });
+  });
+
+  it("leaves rank null when the server does not send one", async () => {
+    const fetchFn = okFetch({ ok: true, rank: null, totalPlayers: null });
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000);
+    expect(sync.state).toMatchObject({ status: "ok", rank: null, totalPlayers: null });
+  });
+
+  it("survives a 200 with an unreadable body", async () => {
+    const fetchFn = vi.fn(async () => new Response("not json", { status: 200 }));
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000);
+    expect(sync.state).toMatchObject({ status: "ok", rank: null });
+  });
+
+  it("honors retry-after instead of hammering a rate-limited server", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: false, retryAfterS: 120 }), {
+          status: 429,
+          headers: { "retry-after": "120" },
+        }),
+    );
+    const sync = new SyncClient({ ...opts, fetchFn });
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000, true);
+    expect(sync.state.status).toBe("error");
+
+    // The active interval has elapsed, but the server asked for 120s.
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000 + 60_000, true);
+    expect(fetchFn).toHaveBeenCalledOnce();
+
+    await sync.maybeSync(statsWith(1), "pro", 1_000_000 + 120_000, true);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 });
