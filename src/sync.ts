@@ -21,12 +21,28 @@ export interface SyncState {
   status: SyncStatus;
   lastSyncAt: string | null;
   lastError: string | null;
+  /** Board position as of the last successful sync, or null if unknown. */
+  rank: number | null;
+  /** Size of the field the rank is out of, or null if unknown. */
+  totalPlayers: number | null;
+}
+
+/** The bits of the ingest response the agent actually uses. */
+interface IngestResponse {
+  rank?: number | null;
+  totalPlayers?: number | null;
 }
 
 export interface SyncOptions {
   serverUrl: string;
   accountToken: string;
+  /** Interval used while no tool is active. */
   syncIntervalMs: number;
+  /**
+   * Interval used while a tool is working, so the board moves while you code.
+   * Must not go below the server's MIN_INGEST_GAP_MS or every push is refused.
+   */
+  activeSyncIntervalMs: number;
   /** Injectable for tests. */
   fetchFn?: typeof fetch;
 }
@@ -56,6 +72,8 @@ export class SyncClient {
   private readonly fetchFn: typeof fetch;
   private lastAttemptMs = 0;
   private inFlight = false;
+  /** Set when the server rate-limits us; no request goes out before this. */
+  private retryNotBeforeMs = 0;
   readonly state: SyncState;
 
   constructor(opts: SyncOptions) {
@@ -65,6 +83,8 @@ export class SyncClient {
       status: this.enabled ? "pending" : "disabled",
       lastSyncAt: null,
       lastError: null,
+      rank: null,
+      totalPlayers: null,
     };
   }
 
@@ -72,10 +92,17 @@ export class SyncClient {
     return Boolean(this.opts.serverUrl && this.opts.accountToken);
   }
 
-  /** Called every tick; only actually syncs once per syncIntervalMs. */
-  async maybeSync(stats: Stats, plan: Plan, now = Date.now()): Promise<void> {
+  /**
+   * Called every tick; only actually syncs once per interval. While a tool is
+   * active that interval is short, so the board (and the rank on the card)
+   * moves while you work; idle, it backs off.
+   */
+  async maybeSync(stats: Stats, plan: Plan, now = Date.now(), active = false): Promise<void> {
     if (!this.enabled || this.inFlight) return;
-    if (now - this.lastAttemptMs < this.opts.syncIntervalMs) return;
+    if (now < this.retryNotBeforeMs) return;
+    const interval = active ? this.opts.activeSyncIntervalMs : this.opts.syncIntervalMs;
+    if (now - this.lastAttemptMs < interval) return;
+
     this.lastAttemptMs = now;
     this.inFlight = true;
     try {
@@ -89,10 +116,15 @@ export class SyncClient {
         body: JSON.stringify(buildPayload(stats, plan)),
       });
       if (res.ok) {
+        const body = (await res.json().catch(() => ({}))) as IngestResponse;
         this.state.status = "ok";
         this.state.lastSyncAt = new Date(now).toISOString();
         this.state.lastError = null;
+        this.state.rank = typeof body.rank === "number" ? body.rank : null;
+        this.state.totalPlayers =
+          typeof body.totalPlayers === "number" ? body.totalPlayers : null;
       } else {
+        if (res.status === 429) this.retryNotBeforeMs = now + (await retryAfterMs(res));
         this.state.status = "error";
         this.state.lastError = `HTTP ${res.status}`;
       }
@@ -103,4 +135,19 @@ export class SyncClient {
       this.inFlight = false;
     }
   }
+}
+
+/** How long the server told us to wait, defaulting to one minute. */
+async function retryAfterMs(res: Response): Promise<number> {
+  const header = Number(res.headers.get("retry-after"));
+  if (Number.isFinite(header) && header > 0) return header * 1000;
+  try {
+    const body = (await res.json()) as { retryAfterS?: unknown };
+    if (typeof body.retryAfterS === "number" && body.retryAfterS > 0) {
+      return body.retryAfterS * 1000;
+    }
+  } catch {
+    // No usable body; fall through to the default.
+  }
+  return 60_000;
 }

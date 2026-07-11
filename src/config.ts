@@ -24,8 +24,15 @@ export interface Config {
   serverUrl: string;
   /** Agent token from your /me page on the leaderboard server. Empty = sync off. */
   accountToken: string;
-  /** How often to push totals to the leaderboard server, in ms. */
+  /** How often to push totals to the leaderboard server while idle, in ms. */
   syncIntervalMs: number;
+  /** How often to push while a tool is active, in ms. Never below MIN_SYNC_INTERVAL_MS. */
+  activeSyncIntervalMs: number;
+  /**
+   * Whether we've already offered to join the leaderboard. Set once, so a user
+   * who says no is never asked again.
+   */
+  askedToJoinBoard: boolean;
   /** Optional overrides for tool detection. Empty = use built-in defaults. */
   tools: ToolDef[];
 }
@@ -35,15 +42,32 @@ export interface Config {
  * identifiers, not secrets, and shipping ours means a new user gets a working
  * card with zero setup — no Developer Portal, no art assets to upload.
  *
+ * TO FILL IN (one-time, maintainer only): create the application at
+ * https://discord.com/developers/applications, name it "viberank" (this is the
+ * name Discord shows on every user's profile), upload the PNGs from
+ * assets/discord/ under Rich Presence → Art Assets with the exact keys
+ * "viberank", "api", "pro", "max", then paste the Application ID here. Until
+ * this is set, everything still works — tracking, leaderboard, rank — but the
+ * Discord card stays off and printSetupHelp() tells the user why.
+ *
  * UNVERIFIED: Discord's terms have not been confirmed to permit one application
- * serving Rich Presence for every user of a distributed tool. This is the single
- * constant to change if that turns out to be disallowed; setting it back to ""
- * restores the old per-user flow with no other code changes.
+ * serving Rich Presence for every user of a distributed tool. Precedent exists
+ * (opencode-discord-presence ships a shared app id), but precedent is not
+ * permission. This is the single constant to change if it turns out to be
+ * disallowed; setting it back to "" restores the per-user flow with no other
+ * code changes.
  */
 export const OFFICIAL_DISCORD_APP_ID = "";
 
 /** The hosted leaderboard. Sync stays off until an account token is paired. */
 export const OFFICIAL_SERVER_URL = "https://viberank.dev";
+
+/**
+ * The server refuses more than one ingest per token per minute (its
+ * MIN_INGEST_GAP_MS). Syncing faster than this just earns 429s, so the active
+ * interval is clamped to it.
+ */
+export const MIN_SYNC_INTERVAL_MS = 60_000;
 
 export const DEFAULT_CONFIG: Config = {
   discordClientId: OFFICIAL_DISCORD_APP_ID,
@@ -60,6 +84,8 @@ export const DEFAULT_CONFIG: Config = {
   serverUrl: OFFICIAL_SERVER_URL,
   accountToken: "",
   syncIntervalMs: 5 * 60_000,
+  activeSyncIntervalMs: MIN_SYNC_INTERVAL_MS,
+  askedToJoinBoard: false,
   tools: [],
 };
 
@@ -80,11 +106,20 @@ export function loadConfig(home = homedir()): { config: Config; created: boolean
   try {
     const raw = readFileSync(path, "utf8");
     const parsed = JSON.parse(raw) as Partial<Config>;
-    return { config: { ...DEFAULT_CONFIG, ...parsed }, created: false };
+    return { config: normalize({ ...DEFAULT_CONFIG, ...parsed }), created: false };
   } catch {
     writeFileSync(path, JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n", "utf8");
     return { config: { ...DEFAULT_CONFIG }, created: true };
   }
+}
+
+/** Keep hand-edited values inside the bounds the server will actually accept. */
+function normalize(config: Config): Config {
+  return {
+    ...config,
+    activeSyncIntervalMs: Math.max(MIN_SYNC_INTERVAL_MS, config.activeSyncIntervalMs),
+    syncIntervalMs: Math.max(MIN_SYNC_INTERVAL_MS, config.syncIntervalMs),
+  };
 }
 
 export function configPath(home = homedir()): string {

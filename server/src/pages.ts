@@ -226,6 +226,36 @@ export function renderMe(
   );
 }
 
+/**
+ * The device-pairing approval page. Deliberately blunt about what's being
+ * authorized: a device flow's one real weakness is a user approving a code an
+ * attacker generated, and the only defence is that the user understands the
+ * code should have come from their own terminal.
+ */
+export function renderPair(user: UserRecord, code: string, error?: string): string {
+  return shell(
+    "viberank — link your agent",
+    `${nav(true)}
+  <div class="card">
+    <h2>Link this device to ${esc(user.username)}</h2>
+    <p class="muted">Your terminal is showing a code. Check it matches the one below,
+    then approve — this lets that agent submit coding time as you.</p>
+    ${error ? `<p style="color:#ff6b6b;margin-top:12px">${esc(error)}</p>` : ""}
+    <form method="post" action="/pair" style="margin-top:14px">
+      <input class="token" name="code" value="${esc(code)}" autocomplete="off"
+             spellcheck="false" style="width:100%;box-sizing:border-box;text-transform:uppercase"/>
+      <p style="margin-top:14px">
+        <button class="btn" type="submit">Approve this device</button>
+        <a class="btn ghost" href="/" style="margin-left:8px">Cancel</a>
+      </p>
+    </form>
+    <p class="muted" style="margin-top:14px">If you didn't just start <code>viberank</code>
+    in a terminal, don't approve this — someone else may be trying to link their agent
+    to your account.</p>
+  </div>`,
+  );
+}
+
 export function renderMessage(title: string, message: string): string {
   return shell(
     `viberank — ${title}`,

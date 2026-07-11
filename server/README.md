@@ -42,9 +42,23 @@ OAuth login.
 | `GET /` | Landing page + global leaderboard |
 | `GET /auth/login` → `/auth/callback` | Discord OAuth (scope: `identify` only) |
 | `GET /me` | Profile, personal stats, **agent link token** |
-| `POST /api/ingest` | Agent sync (Bearer agent token) |
+| `POST /api/ingest` | Agent sync (Bearer agent token). Responds with the caller's `rank` and `totalPlayers` |
 | `GET /api/leaderboard` | Board as JSON |
+| `POST /api/pair/start` | Agent begins pairing → `{deviceCode, userCode, verifyUrl}` |
+| `POST /api/pair/poll` | Agent collects its token → `{status: pending\|expired\|ready, accountToken?}` |
+| `GET /pair` → `POST /pair` | Human approves a user code (login required) |
 | `GET /healthz` | Liveness |
+
+## Pairing
+
+Nobody copies a token by hand. The agent holds a secret **device code** and shows
+the human a short **user code**; the human approves that code in a browser while
+logged in; the agent polls and collects its own token. Same shape as `gh auth
+login` or `docker login`.
+
+Codes live 10 minutes and are burned on collection, so a leaked device code
+can't be replayed — a second poll reports `expired`, exactly as an unknown or
+timed-out code does.
 
 ## Anti-cheat
 

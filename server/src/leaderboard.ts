@@ -25,18 +25,17 @@ export interface BoardEntry extends BoardRow {
 }
 
 /**
- * Rank users on the single global board. Scoring is the exact same formula the
- * agent uses (hours + combos × 0.25) — one board for everyone, with the plan
- * shown as a badge for context, never as a weighting.
+ * Score every row and sort best-first. Ranks are not assigned here: a rank is
+ * only meaningful against the *whole* field, so callers that truncate must
+ * truncate after ranking, never before.
  */
-export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
+function scoreAndSort(rows: BoardRow[]): Omit<BoardEntry, "rank">[] {
   return rows
     .map((row) => {
       const xp = xpFromTotals(row.activeMs, row.combos);
       const tier = tierForXp(xp);
       return {
         ...row,
-        rank: 0,
         xp,
         hours: row.activeMs / 3_600_000,
         tierName: tier.name,
@@ -47,7 +46,34 @@ export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
           : null,
       };
     })
-    .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username))
-    .slice(0, limit)
-    .map((entry, i) => ({ ...entry, rank: i + 1 }));
+    .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username));
+}
+
+/**
+ * Rank users on the single global board. Scoring is the exact same formula the
+ * agent uses (hours + combos × 0.25) — one board for everyone, with the plan
+ * shown as a badge for context, never as a weighting.
+ */
+export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
+  return scoreAndSort(rows)
+    .map((entry, i) => ({ ...entry, rank: i + 1 }))
+    .slice(0, limit);
+}
+
+/** One user's standing in the full field. */
+export interface Standing {
+  rank: number;
+  totalPlayers: number;
+}
+
+/**
+ * Where one user sits on the board. Computed against every row, not the top
+ * slice rankBoard renders — otherwise player #340 would have no rank at all,
+ * which is exactly who most needs to see one on their card.
+ */
+export function rankOf(rows: BoardRow[], discordId: string): Standing | null {
+  const all = scoreAndSort(rows);
+  const index = all.findIndex((entry) => entry.discordId === discordId);
+  if (index === -1) return null;
+  return { rank: index + 1, totalPlayers: all.length };
 }
