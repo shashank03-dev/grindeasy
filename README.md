@@ -55,6 +55,35 @@ Open the local dashboard at **http://localhost:4599**.
 > The npm name `grindeasy` belongs to an unrelated project, which is why the
 > package is scoped.
 
+## Keep it running
+
+`npx grindeasy` tracks only while that terminal stays open. To keep counting
+after you close it — and across reboots — install it as a background service:
+
+```bash
+grindeasy service install     # start tracking in the background
+grindeasy service status      # rank, hours, sync, is it running?
+grindeasy service uninstall   # stop; your token and stats are kept
+```
+
+On first run, right after you join the leaderboard, grindeasy offers to do this
+for you (just press enter). The service runs whenever you're logged in and
+restarts itself if it ever crashes.
+
+| Platform | Mechanism | Restarts on crash | Survives reboot |
+|---|---|---|---|
+| Linux | systemd **user** unit (`~/.config/systemd/user/`) | yes | yes (login-linger) |
+| macOS | launchd **LaunchAgent** (`~/Library/LaunchAgents/`) | yes | yes (at login) |
+| Windows | `HKCU…\Run` entry → hidden supervisor loop | yes | yes (at login) |
+
+No admin/sudo and no UAC prompt on any platform — everything is per-user. Running
+`grindeasy` again while the service is up just shows its status; it never starts a
+second tracker.
+
+> **Windows note:** the supervisor is a hidden auto-restart loop, which some
+> antivirus/SmartScreen setups treat as suspicious. If it's blocked, either allow
+> it or just keep a terminal open with `npx grindeasy`.
+
 ## The Discord card
 
 The card works out of the box — grindeasy ships its own Discord application, so

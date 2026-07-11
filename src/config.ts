@@ -36,6 +36,11 @@ export interface Config {
    * who says no is never asked again.
    */
   askedToJoinBoard: boolean;
+  /**
+   * Whether we've already offered to install the background service. Set once,
+   * same never-nag-twice rule as askedToJoinBoard.
+   */
+  askedToInstallService: boolean;
   /** Optional overrides for tool detection. Empty = use built-in defaults. */
   tools: ToolDef[];
 }
@@ -94,6 +99,7 @@ export const DEFAULT_CONFIG: Config = {
   syncIntervalMs: 5 * 60_000,
   activeSyncIntervalMs: MIN_SYNC_INTERVAL_MS,
   askedToJoinBoard: false,
+  askedToInstallService: false,
   tools: [],
 };
 
