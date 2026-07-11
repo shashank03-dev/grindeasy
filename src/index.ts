@@ -13,6 +13,18 @@ import { detectAll, defaultTools } from "./tools.js";
 import { Tracker } from "./tracker.js";
 
 /**
+ * How long a session survives a lull in tool activity. Tool logs are bursty —
+ * a single long model turn writes nothing for minutes — so a gap shorter than
+ * this is still the same session. Without it the elapsed timer on the Discord
+ * card restarts at 0:00 every time the model thinks for longer than
+ * `activeWindowMs`, which is most turns.
+ *
+ * This only affects what the card *displays*. Credited time still comes from
+ * the raw per-tick detection, so a lull is never counted as work.
+ */
+const SESSION_GRACE_MS = 5 * 60_000;
+
+/**
  * Only reachable when OFFICIAL_DISCORD_APP_ID is unset (self-hosters, or if
  * Discord ever disallows a shared application). The happy path shows nothing.
  */
@@ -121,6 +133,8 @@ async function main(): Promise<void> {
 
   let activeNames: string[] = [];
   let sessionStartMs: number | null = null;
+  let lastActiveMs = 0;
+  let lastActiveNames: string[] = [];
 
   const presence = new PresenceManager({
     clientId: config.discordClientId,
@@ -164,11 +178,19 @@ async function main(): Promise<void> {
     const activities = await detectAll(tools, config.activeWindowMs, now);
     tracker.recordTick(stats, activities, now, elapsed);
 
-    activeNames = activities.filter((a) => a.active).map((a) => a.name);
-    if (activeNames.length > 0) {
+    const detected = activities.filter((a) => a.active).map((a) => a.name);
+    if (detected.length > 0) {
       if (sessionStartMs === null) sessionStartMs = now;
+      lastActiveMs = now;
+      lastActiveNames = detected;
+      activeNames = detected;
+    } else if (sessionStartMs !== null && now - lastActiveMs <= SESSION_GRACE_MS) {
+      // Inside the lull: hold the card steady on the last known tools instead
+      // of flapping to Idle and back every time the model pauses to think.
+      activeNames = lastActiveNames;
     } else {
       sessionStartMs = null;
+      activeNames = [];
     }
 
     presence.update({
