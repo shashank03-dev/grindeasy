@@ -25,18 +25,17 @@ export interface BoardEntry extends BoardRow {
 }
 
 /**
- * Rank users on the single global board. Scoring is the exact same formula the
- * agent uses (hours + combos × 0.25) — one board for everyone, with the plan
- * shown as a badge for context, never as a weighting.
+ * Score and order the whole field. Scoring is the exact same formula the agent
+ * uses (hours + combos × 0.25) — one board for everyone, with the plan shown as
+ * a badge for context, never as a weighting.
  */
-export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
+function scoreAndSort(rows: BoardRow[]): Omit<BoardEntry, "rank">[] {
   return rows
     .map((row) => {
       const xp = xpFromTotals(row.activeMs, row.combos);
       const tier = tierForXp(xp);
       return {
         ...row,
-        rank: 0,
         xp,
         hours: row.activeMs / 3_600_000,
         tierName: tier.name,
@@ -47,7 +46,32 @@ export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
           : null,
       };
     })
-    .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username))
-    .slice(0, limit)
-    .map((entry, i) => ({ ...entry, rank: i + 1 }));
+    .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username));
+}
+
+/** The public board: the top `limit` players, ranked. */
+export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
+  // Rank against the whole field, then truncate. Ranking after the slice would
+  // be identical here but wrong the moment a caller wants rank 101+.
+  return scoreAndSort(rows)
+    .map((entry, i) => ({ ...entry, rank: i + 1 }))
+    .slice(0, limit);
+}
+
+/** Where one player stands, out of everyone. */
+export interface Standing {
+  rank: number;
+  totalPlayers: number;
+}
+
+/**
+ * One player's standing, ranked against the entire field rather than the
+ * visible top 100 — most players are below the cut, and their card still has to
+ * show a real number.
+ */
+export function rankOf(rows: BoardRow[], discordId: string): Standing | null {
+  const all = scoreAndSort(rows);
+  const index = all.findIndex((entry) => entry.discordId === discordId);
+  if (index === -1) return null;
+  return { rank: index + 1, totalPlayers: all.length };
 }

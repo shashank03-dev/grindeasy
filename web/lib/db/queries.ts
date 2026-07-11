@@ -53,6 +53,11 @@ export async function getUserByDiscordId(db: Db, discordId: string): Promise<Use
   return (row as UserRecord) ?? null;
 }
 
+export async function getUserById(db: Db, id: number): Promise<UserRecord | null> {
+  const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return (row as UserRecord) ?? null;
+}
+
 export async function setPlan(db: Db, userId: number, plan: Plan): Promise<void> {
   await db.update(users).set({ plan }).where(eq(users.id, userId));
 }
