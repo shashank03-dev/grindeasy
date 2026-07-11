@@ -1,0 +1,14 @@
+{
+  "comment": "Golden scoring vectors. Read by BOTH the agent suite (test/tiers.test.ts) and the web suite (web/lib/core/tiers.test.ts). The agent computes a user's tier locally for the Discord card; the server computes it for the leaderboard. If those two ever disagree, a user sees one tier on their profile and another on the board. Changing the ladder means changing this file, which fails both suites until both implementations are updated together.",
+  "comboXpHours": 0.25,
+  "vectors": [
+    { "activeMs": 0, "combos": 0, "xp": 0, "tier": "Bronze", "glyph": "▲", "nextAtXp": 10 },
+    { "activeMs": 3600000, "combos": 0, "xp": 1, "tier": "Bronze", "glyph": "▲", "nextAtXp": 10 },
+    { "activeMs": 3600000, "combos": 4, "xp": 2, "tier": "Bronze", "glyph": "▲", "nextAtXp": 10 },
+    { "activeMs": 36000000, "combos": 0, "xp": 10, "tier": "Silver", "glyph": "■", "nextAtXp": 40 },
+    { "activeMs": 0, "combos": 40, "xp": 10, "tier": "Silver", "glyph": "■", "nextAtXp": 40 },
+    { "activeMs": 144000000, "combos": 0, "xp": 40, "tier": "Gold", "glyph": "★", "nextAtXp": 100 },
+    { "activeMs": 360000000, "combos": 0, "xp": 100, "tier": "Platinum", "glyph": "◆", "nextAtXp": 250 },
+    { "activeMs": 900000000, "combos": 0, "xp": 250, "tier": "Diamond", "glyph": "❖", "nextAtXp": null }
+  ]
+}

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { loadConfig, dataDir, configPath } from "./config.js";
+import { createInterface } from "node:readline/promises";
+import { loadConfig, dataDir, configPath, updateConfig, type Config } from "./config.js";
+import { openBrowser, pair } from "./pair.js";
 import { detectPlan, planBadge } from "./plan.js";
 import { PresenceManager, REPO_URL } from "./presence.js";
 import { buildSnapshot } from "./snapshot.js";
@@ -10,24 +12,104 @@ import { computeTier } from "./tiers.js";
 import { detectAll, defaultTools } from "./tools.js";
 import { Tracker } from "./tracker.js";
 
+/**
+ * Only reachable when OFFICIAL_DISCORD_APP_ID is unset (self-hosters, or if
+ * Discord ever disallows a shared application). The happy path shows nothing.
+ */
 function printSetupHelp(): void {
   console.log(`
 ┌─ viberank setup ────────────────────────────────────────────┐
-  To show the Discord card you need a free Discord Application ID:
-    1. Open https://discord.com/developers/applications
-    2. "New Application" → name it viberank → copy the Application ID
-    3. Under "Rich Presence → Art Assets", upload an image named
-       "viberank" (and optionally "pro"/"max"/"api" plan icons)
-    4. Paste the ID into: ${configPath()}
-         "discordClientId": "PASTE_IT_HERE"
-    5. Make sure the Discord desktop app is running, then restart viberank
-  Tracking works without this — only the Discord card needs it.
+  No Discord Application ID is configured, so the card is off.
+  Tracking and the leaderboard still work without it.
+
+  To enable the card, create a free application at
+    https://discord.com/developers/applications
+  upload a Rich Presence art asset named "viberank", then set
+    "discordClientId" in ${configPath()}
 └─────────────────────────────────────────────────────────────┘
 `);
 }
 
+/**
+ * Pair this machine with the leaderboard. The user clicks one button in a
+ * browser; the agent writes its own token. No file editing.
+ */
+async function pairWithBoard(serverUrl: string): Promise<string> {
+  const token = await pair({
+    serverUrl,
+    onPrompt: (info) => {
+      console.log(`\n  Confirm this code in your browser:  ${info.userCode}\n`);
+      console.log(`  ${info.verifyUrl}\n`);
+      console.log(`  Waiting for you to authorize…`);
+      openBrowser(info.verifyUrl);
+    },
+  });
+  updateConfig({ accountToken: token });
+  return token;
+}
+
+/** `viberank login` — pair explicitly, e.g. to re-pair after revoking a device. */
+async function login(): Promise<void> {
+  const { config } = loadConfig();
+  if (!config.serverUrl) {
+    console.error("No serverUrl configured, so there is nothing to pair with.");
+    process.exit(1);
+  }
+  await pairWithBoard(config.serverUrl);
+  console.log(`\n  ✓ Paired. Run \`viberank\` and your time starts counting.\n`);
+}
+
+/**
+ * Offer the leaderboard once, on the first interactive run. Sync stays opt-in —
+ * nothing is sent anywhere unless a human answers yes — but nobody has to know
+ * that `viberank login` exists to find the board.
+ *
+ * Returns the account token if pairing completed, else "".
+ */
+async function offerLeaderboard(config: Config): Promise<string> {
+  const eligible =
+    config.serverUrl &&
+    !config.accountToken &&
+    !config.askedToJoinBoard &&
+    process.stdin.isTTY;
+  if (!eligible) return "";
+
+  // Asked, whatever the answer — we never nag twice.
+  updateConfig({ askedToJoinBoard: true });
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let answer: string;
+  try {
+    answer = await rl.question("\n  Join the global leaderboard? [Y/n] ");
+  } finally {
+    rl.close();
+  }
+  if (/^n/i.test(answer.trim())) {
+    console.log(`  No problem — staying local. Run \`viberank login\` any time.\n`);
+    return "";
+  }
+
+  try {
+    const token = await pairWithBoard(config.serverUrl);
+    console.log(`\n  ✓ Joined. Your rank now shows on your Discord card.\n`);
+    return token;
+  } catch (err) {
+    // A failed pairing must never stop the agent: the card and local tracking
+    // work perfectly well without a board.
+    console.warn(`  Pairing didn't finish (${(err as Error).message}).`);
+    console.warn(`  Run \`viberank login\` to try again.\n`);
+    return "";
+  }
+}
+
 async function main(): Promise<void> {
-  const { config, created } = loadConfig();
+  if (process.argv[2] === "login") {
+    await login();
+    return;
+  }
+
+  const { config } = loadConfig();
+  const accountToken = config.accountToken || (await offerLeaderboard(config));
   const dir = dataDir();
   const plan = detectPlan({ declaredPlan: config.declaredPlan });
   const stats = loadStats(dir);
@@ -49,8 +131,9 @@ async function main(): Promise<void> {
 
   const sync = new SyncClient({
     serverUrl: config.serverUrl,
-    accountToken: config.accountToken,
+    accountToken,
     syncIntervalMs: config.syncIntervalMs,
+    activeSyncIntervalMs: config.activeSyncIntervalMs,
   });
 
   const server = startStatsServer(config.statsPort, () =>
@@ -64,11 +147,11 @@ async function main(): Promise<void> {
   console.log(`   tools     ${tools.map((t) => t.name).join(", ")}`);
   console.log(
     `   sync      ${
-      sync.enabled ? `→ ${config.serverUrl}` : "off — link a leaderboard account to enable"
+      sync.enabled ? `→ ${config.serverUrl}` : "off — run `viberank login` to join the board"
     }`,
   );
   console.log(`   repo      ${REPO_URL}`);
-  if (created || !config.discordClientId) printSetupHelp();
+  if (!config.discordClientId) printSetupHelp();
 
   let lastTick = Date.now();
   let running = true;
@@ -93,9 +176,12 @@ async function main(): Promise<void> {
       tier: computeTier(stats),
       plan,
       sessionStartMs,
+      // Whatever the last sync learned. Null until the first one lands, and
+      // null forever if the user never joined the board.
+      rank: sync.state.rank,
     });
     saveStats(dir, stats);
-    void sync.maybeSync(stats, plan, now);
+    void sync.maybeSync(stats, plan, now, activeNames.length > 0);
   }
 
   async function loop(): Promise<void> {

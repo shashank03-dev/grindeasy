@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankBoard, type BoardRow } from "../src/leaderboard.js";
+import { rankBoard, rankOf, type BoardRow } from "../src/leaderboard.js";
 
 const H = 3_600_000;
 
@@ -50,5 +50,35 @@ describe("rankBoard", () => {
       "https://cdn.discordapp.com/avatars/42/abc.png?size=64",
     );
     expect(entries.find((e) => e.username === "without")?.avatarUrl).toBeNull();
+  });
+});
+
+describe("rankOf", () => {
+  it("ranks a player who sits outside the rendered top 100", () => {
+    // 150 players; the one we want is deliberately far below the cut, which is
+    // exactly the case rankBoard's limit would silently drop.
+    const rows = Array.from({ length: 150 }, (_, i) =>
+      row({ discordId: `u${i}`, username: `u${i}`, activeMs: (150 - i) * H }),
+    );
+    expect(rankBoard(rows)).toHaveLength(100);
+
+    const standing = rankOf(rows, "u119");
+    expect(standing).toEqual({ rank: 120, totalPlayers: 150 });
+  });
+
+  it("agrees with rankBoard inside the top 100", () => {
+    const rows = [
+      row({ discordId: "a", username: "a", activeMs: 3 * H }),
+      row({ discordId: "b", username: "b", activeMs: 9 * H }),
+      row({ discordId: "c", username: "c", activeMs: 6 * H }),
+    ];
+    const board = rankBoard(rows);
+    for (const entry of board) {
+      expect(rankOf(rows, entry.discordId)?.rank).toBe(entry.rank);
+    }
+  });
+
+  it("returns null for someone not on the board", () => {
+    expect(rankOf([row({ discordId: "a" })], "nobody")).toBeNull();
   });
 });

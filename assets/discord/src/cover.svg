@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 576">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="576" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14171F"/>
+      <stop offset="1" stop-color="#0A0C10"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="230" cy="288" r="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF8A2B" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FF8A2B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC24D"/>
+      <stop offset="0.55" stop-color="#FF8A2B"/>
+      <stop offset="1" stop-color="#FF3D57"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="576" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="576" fill="url(#glow)"/>
+
+  <!-- bolt mark, scaled + translated from the 100x100 unit mark -->
+  <g transform="translate(70,88) scale(3.6)">
+    <polygon points="62,4 24,47 46,47 39,96 76,53 55,53" fill="url(#bolt)"/>
+  </g>
+
+  <text x="410" y="300" font-family="JetBrainsMono Nerd Font Mono" font-weight="800" font-size="108" fill="#EDEFF2" letter-spacing="-2">viberank</text>
+  <text x="412" y="350" font-family="JetBrainsMono Nerd Font Mono" font-weight="600" font-size="34" fill="#FF9A3D" letter-spacing="2">vibe &amp; climb</text>
+</svg>

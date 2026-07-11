@@ -1,17 +1,26 @@
 {
-  "name": "viberank",
-  "version": "0.2.0",
+  "name": "@shashank03-dev/viberank",
+  "version": "0.3.0",
   "description": "Discord Rich Presence + personal tiers for AI coding tools (Claude Code, Codex, OpenCode). Shows what you're actively coding with, tracks your tier, and (Phase 2) feeds a global leaderboard.",
   "type": "module",
   "bin": {
     "viberank": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "discord",
