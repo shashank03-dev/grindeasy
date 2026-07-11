@@ -1,0 +1,309 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  artifacts,
+  disableCommands,
+  enableCommands,
+  installService,
+  isAgentRunning,
+  isInstalled,
+  renderRunningStatus,
+  renderSupervisorVbs,
+  renderSystemdUnit,
+  serviceStatus,
+  uninstallService,
+  type RunResult,
+  type ServiceEnv,
+} from "../src/service.js";
+import type { Snapshot } from "../src/snapshot.js";
+
+// ── Pure generators, checked for every platform on this one host ─────────────
+
+describe("artifacts()", () => {
+  it("linux writes the systemd user unit", () => {
+    const [a, ...rest] = artifacts("linux", "/home/u");
+    expect(rest).toHaveLength(0);
+    expect(a!.path).toBe("/home/u/.config/systemd/user/grindeasy.service");
+    expect(a!.content).toContain("Restart=always");
+    expect(a!.content).toContain("StartLimitIntervalSec=0");
+    expect(a!.content).toContain("ExecStart=/bin/bash -lc 'exec grindeasy'");
+  });
+
+  it("darwin writes the launchd plist with KeepAlive + RunAtLoad", () => {
+    const [a] = artifacts("darwin", "/Users/u");
+    expect(a!.path).toBe("/Users/u/Library/LaunchAgents/tech.grindeasy.plist");
+    expect(a!.content).toContain("<key>KeepAlive</key>");
+    expect(a!.content).toContain("<key>RunAtLoad</key>");
+    expect(a!.content).toContain("<string>exec grindeasy</string>");
+    // launchd has no shell, so the login shell is the program itself.
+    expect(a!.content).toContain("<string>/bin/bash</string>");
+  });
+
+  it("win32 writes the supervisor vbs in the grindeasy data dir", () => {
+    const [a] = artifacts("win32", "C:/Users/u");
+    expect(a!.path).toContain("supervise.vbs");
+    expect(a!.path).toContain(".grindeasy");
+    // The loop is the crash-restart mechanism; hidden + wait-for-exit.
+    expect(a!.content).toContain('sh.Run "cmd /c grindeasy", 0, True');
+    expect(a!.content).toContain("Loop");
+  });
+
+  it("returns nothing for an unsupported platform", () => {
+    expect(artifacts("freebsd" as NodeJS.Platform, "/home/u")).toEqual([]);
+  });
+});
+
+describe("enableCommands()", () => {
+  it("linux enables + starts the unit and enables linger", () => {
+    const cmds = enableCommands("linux", "/home/u");
+    expect(cmds).toContainEqual(["systemctl", "--user", "enable", "--now", "grindeasy"]);
+    expect(cmds).toContainEqual(["loginctl", "enable-linger"]);
+  });
+
+  it("darwin bootstraps into the gui domain", () => {
+    const cmds = enableCommands("darwin", "/Users/u");
+    expect(cmds[0]![0]).toBe("launchctl");
+    expect(cmds[0]![1]).toBe("bootstrap");
+    expect(cmds[0]![3]).toBe("/Users/u/Library/LaunchAgents/tech.grindeasy.plist");
+  });
+
+  it("win32 writes an HKCU Run value pointing at the vbs via wscript", () => {
+    const cmds = enableCommands("win32", "C:/Users/u");
+    const [cmd, ...args] = cmds[0]!;
+    expect(cmd).toBe("reg");
+    expect(args[0]).toBe("add");
+    expect(args).toContain("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    const data = args[args.indexOf("/d") + 1]!;
+    expect(data).toMatch(/^wscript\.exe ".*supervise\.vbs"$/);
+  });
+});
+
+describe("disableCommands()", () => {
+  it("linux disables + stops the unit", () => {
+    expect(disableCommands("linux", "/home/u")).toContainEqual([
+      "systemctl",
+      "--user",
+      "disable",
+      "--now",
+      "grindeasy",
+    ]);
+  });
+
+  it("darwin boots the agent out of the gui domain", () => {
+    const cmds = disableCommands("darwin", "/Users/u");
+    expect(cmds[0]![0]).toBe("launchctl");
+    expect(cmds[0]![1]).toBe("bootout");
+  });
+
+  it("win32 removes the Run value", () => {
+    const cmds = disableCommands("win32", "C:/Users/u");
+    expect(cmds[0]!.slice(0, 3)).toEqual([
+      "reg",
+      "delete",
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+    ]);
+  });
+});
+
+describe("renderSystemdUnit / renderSupervisorVbs", () => {
+  it("the unit never gives up restarting", () => {
+    const unit = renderSystemdUnit();
+    expect(unit).toContain("StartLimitIntervalSec=0");
+    expect(unit).toContain("Restart=always");
+    expect(unit).toContain("Nice=10");
+  });
+
+  it("the supervisor backs off 10s between restarts", () => {
+    expect(renderSupervisorVbs()).toContain("WScript.Sleep 10000");
+  });
+});
+
+// ── isAgentRunning (the duplicate guard + verify probe) ──────────────────────
+
+function snapshotFixture(over: Partial<Snapshot> = {}): Snapshot {
+  return {
+    tierName: "Gold",
+    tierGlyph: "●",
+    xp: 40,
+    nextAtXp: 100,
+    progressPct: 40,
+    totalHours: 2.4,
+    perTool: [],
+    combos: 0,
+    plan: "pro",
+    planBadge: "PRO",
+    streakDays: 1,
+    activeNow: ["Claude Code"],
+    achievements: [],
+    sync: {
+      status: "ok",
+      lastSyncAt: "2026-07-11T16:44:25.141Z",
+      lastError: null,
+      rank: 3,
+      totalPlayers: 128,
+    },
+    donateUrl: "https://example.com",
+    generatedAt: "2026-07-11T16:44:25.141Z",
+    ...over,
+  };
+}
+
+describe("isAgentRunning()", () => {
+  it("returns the parsed snapshot on a 200", async () => {
+    const snap = snapshotFixture();
+    const fetchFn = vi.fn(
+      async () => new Response(JSON.stringify(snap), { status: 200 }),
+    ) as unknown as typeof fetch;
+    const got = await isAgentRunning(4599, fetchFn);
+    expect(got?.sync?.rank).toBe(3);
+  });
+
+  it("returns null when nothing is listening (fetch throws)", async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+    expect(await isAgentRunning(4599, fetchFn)).toBeNull();
+  });
+
+  it("returns null on a non-200", async () => {
+    const fetchFn = vi.fn(
+      async () => new Response("nope", { status: 500 }),
+    ) as unknown as typeof fetch;
+    expect(await isAgentRunning(4599, fetchFn)).toBeNull();
+  });
+});
+
+describe("renderRunningStatus()", () => {
+  it("shows rank out of the field when known", () => {
+    expect(renderRunningStatus(snapshotFixture())).toContain("#3 of 128");
+  });
+
+  it("shows a dash for rank when sync is local-only", () => {
+    const out = renderRunningStatus(snapshotFixture({ sync: null }));
+    expect(out).toContain("Rank      —");
+    expect(out).toContain("local only");
+  });
+});
+
+// ── Lifecycle with an injected runner + fake home ────────────────────────────
+
+describe("installService()", () => {
+  let home: string;
+  const okRunner = vi.fn(async (): Promise<RunResult> => ({ code: 0, stdout: "", stderr: "" }));
+
+  function env(over: Partial<ServiceEnv> = {}): Partial<ServiceEnv> {
+    return {
+      home,
+      platform: "linux",
+      statsPort: 4599,
+      run: okRunner,
+      fetchFn: vi.fn(
+        async () => new Response(JSON.stringify(snapshotFixture()), { status: 200 }),
+      ) as unknown as typeof fetch,
+      sleep: async () => {},
+      log: () => {},
+      spawnSupervisor: vi.fn(),
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "grindeasy-svc-"));
+    okRunner.mockClear();
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  it("writes the unit, runs enable, and verifies via the stats port", async () => {
+    await installService(env());
+    expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(true);
+    expect(okRunner).toHaveBeenCalled();
+  });
+
+  it("spawns the supervisor on win32 (Run key doesn't start it)", async () => {
+    const spawnSupervisor = vi.fn();
+    await installService(env({ platform: "win32", spawnSupervisor }));
+    expect(spawnSupervisor).toHaveBeenCalledWith(home);
+  });
+
+  it("cleans up the artifact when enable fails, leaving nothing half-installed", async () => {
+    const failRunner = vi.fn(async (): Promise<RunResult> => ({
+      code: 1,
+      stdout: "",
+      stderr: "no systemd",
+    }));
+    await installService(env({ run: failRunner }));
+    expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(false);
+  });
+
+  it("does not reinstall when already installed", async () => {
+    await installService(env());
+    okRunner.mockClear();
+    await installService(env());
+    expect(okRunner).not.toHaveBeenCalled();
+  });
+
+  it("tolerates loginctl failing (linger is best-effort)", async () => {
+    const runner = vi.fn(async (cmd: string): Promise<RunResult> =>
+      cmd === "loginctl"
+        ? { code: 1, stdout: "", stderr: "no session" }
+        : { code: 0, stdout: "", stderr: "" },
+    );
+    await installService(env({ run: runner }));
+    expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(true);
+  });
+});
+
+describe("uninstallService()", () => {
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "grindeasy-svc-"));
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  it("removes the artifact and runs disable", async () => {
+    const run = vi.fn(async (): Promise<RunResult> => ({ code: 0, stdout: "", stderr: "" }));
+    const base: Partial<ServiceEnv> = {
+      home,
+      platform: "linux",
+      statsPort: 4599,
+      run,
+      fetchFn: vi.fn(async () => new Response(null, { status: 500 })) as unknown as typeof fetch,
+      sleep: async () => {},
+      log: () => {},
+      spawnSupervisor: vi.fn(),
+    };
+    await installService(base);
+    expect(isInstalled("linux", home)).toBe(true);
+
+    await uninstallService(base);
+    expect(isInstalled("linux", home)).toBe(false);
+    expect(run).toHaveBeenCalledWith("systemctl", ["--user", "disable", "--now", "grindeasy"]);
+  });
+
+  it("is a no-op when nothing is installed", async () => {
+    const run = vi.fn(async (): Promise<RunResult> => ({ code: 0, stdout: "", stderr: "" }));
+    await uninstallService({ home, platform: "linux", run, log: () => {} });
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe("serviceStatus()", () => {
+  it("reports not-installed + not-running cleanly", async () => {
+    const home = mkdtempSync(join(tmpdir(), "grindeasy-svc-"));
+    const lines: string[] = [];
+    await serviceStatus({
+      home,
+      platform: "linux",
+      statsPort: 4599,
+      fetchFn: vi.fn(async () => {
+        throw new Error("down");
+      }) as unknown as typeof fetch,
+      log: (m) => lines.push(m),
+    });
+    expect(lines.join("\n")).toContain("not installed");
+    expect(lines.join("\n")).toContain("not running");
+    rmSync(home, { recursive: true, force: true });
+  });
+});

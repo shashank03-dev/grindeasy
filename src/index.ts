@@ -1,10 +1,20 @@
 #!/usr/bin/env node
+import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
 import { loadConfig, dataDir, configPath, updateConfig, type Config } from "./config.js";
 import { openBrowser, pair } from "./pair.js";
 import { detectPlan, planBadge } from "./plan.js";
 import { PresenceManager, REPO_URL } from "./presence.js";
-import { buildSnapshot } from "./snapshot.js";
+import {
+  installService,
+  isAgentRunning,
+  isInstalled,
+  platformSupported,
+  renderRunningStatus,
+  serviceStatus,
+  uninstallService,
+} from "./service.js";
+import { buildSnapshot, type Snapshot } from "./snapshot.js";
 import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
 import { SyncClient } from "./sync.js";
@@ -114,14 +124,79 @@ async function offerLeaderboard(config: Config): Promise<string> {
   }
 }
 
+/**
+ * After pairing, offer to keep grindeasy running in the background. Opt-out
+ * (default yes), asked exactly once. Returns true when a service now owns
+ * tracking, so the caller should exit rather than start a second tracker.
+ */
+async function offerServiceInstall(config: Config): Promise<boolean> {
+  const eligible =
+    process.stdin.isTTY &&
+    !config.askedToInstallService &&
+    platformSupported(process.platform) &&
+    !isInstalled(process.platform, homedir());
+  if (!eligible) return false;
+
+  updateConfig({ askedToInstallService: true });
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let answer: string;
+  try {
+    answer = await rl.question(
+      "\n  Keep grindeasy tracking in the background (survives closing this terminal and reboots)? [Y/n] ",
+    );
+  } finally {
+    rl.close();
+  }
+  if (/^n/i.test(answer.trim())) {
+    console.log("  Staying in the foreground. Install later with `grindeasy service install`.\n");
+    return false;
+  }
+  return installService({ statsPort: config.statsPort });
+}
+
+/** The duplicate guard's output: a live snapshot instead of a second tracker. */
+function printAlreadyRunning(snap: Snapshot): void {
+  console.log("grindeasy is already running in the background.\n");
+  console.log(renderRunningStatus(snap));
+  console.log("\nManage it:  grindeasy service status\n");
+}
+
 async function main(): Promise<void> {
   if (process.argv[2] === "login") {
     await login();
     return;
   }
 
+  if (process.argv[2] === "service") {
+    const { config } = loadConfig();
+    const env = { statsPort: config.statsPort };
+    const verb = process.argv[3];
+    if (verb === "install") await installService(env);
+    else if (verb === "uninstall") await uninstallService(env);
+    else if (verb === "status") await serviceStatus(env);
+    else {
+      console.error("Usage: grindeasy service <install|uninstall|status>");
+      process.exit(1);
+    }
+    return;
+  }
+
   const { config } = loadConfig();
+
+  // Never start a second tracker: if an agent (the service, or another run) is
+  // already answering on the stats port, show its status and exit. Two trackers
+  // on one token is exactly what trips the server's per-token 429.
+  const alreadyRunning = await isAgentRunning(config.statsPort);
+  if (alreadyRunning) {
+    printAlreadyRunning(alreadyRunning);
+    return;
+  }
+
   const accountToken = config.accountToken || (await offerLeaderboard(config));
+
+  // Right after a fresh pairing, offer to hand off to a background service.
+  if (accountToken && (await offerServiceInstall(config))) return;
   const dir = dataDir();
   const plan = detectPlan({ declaredPlan: config.declaredPlan });
   const stats = loadStats(dir);
