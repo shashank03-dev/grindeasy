@@ -183,6 +183,9 @@ line and everything else keeps working.
   Docker deploy.
 - **Phase 4 (done)** — zero-step install, live rank on the card, minute-fresh
   board sync.
+- **Phase 5 (done, 0.3.3)** — background service installer (`grindeasy service`
+  install/uninstall/status) for Linux, macOS and Windows, with a duplicate-run
+  guard.
 - **Next** — more tools, supporter cosmetics.
 
 ## Support
