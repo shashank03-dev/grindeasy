@@ -65,12 +65,10 @@ export const OFFICIAL_DISCORD_APP_ID = "1525448643426123826";
 /**
  * The hosted leaderboard. Live, so first run can offer to join it.
  *
- * This is a Vercel-assigned URL, not a domain we own — moving off Vercel means
- * every already-installed agent keeps calling an address we no longer control.
- * Point grindeasy.tech here and change this constant BEFORE publishing to npm,
- * while the only installs are ours.
+ * grindeasy.tech, not the raw Vercel URL — the domain we actually own, so
+ * changing hosts later never breaks an already-installed agent.
  */
-export const OFFICIAL_SERVER_URL = "https://grindboard-iota.vercel.app";
+export const OFFICIAL_SERVER_URL = "https://grindeasy.tech";
 
 /**
  * The server refuses more than one ingest per token per minute (its
