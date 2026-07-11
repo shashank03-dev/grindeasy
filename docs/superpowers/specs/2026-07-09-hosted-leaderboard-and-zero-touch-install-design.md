@@ -1,14 +1,14 @@
-# viberank: hosted leaderboard + zero-touch install
+# grindboard: hosted leaderboard + zero-touch install
 
 **Date:** 2026-07-09
 **Status:** Draft for review
 
 ## Problem
 
-Getting onto the viberank leaderboard currently takes eleven manual steps: six in the
+Getting onto the grindboard leaderboard currently takes eleven manual steps: six in the
 Discord Developer Portal to register a personal application and upload art assets
 (`README.md:50-64`), then self-hosting a server, then copy-pasting an agent token from
-`/me` into `~/.viberank/config.json` (`README.md:86-90`). Each step sheds users. Most
+`/me` into `~/.grindboard/config.json` (`README.md:86-90`). Each step sheds users. Most
 people will not edit a JSON file to join a leaderboard.
 
 Separately, the product has no public face. The only UI is a dashboard on `localhost:4599`
@@ -50,7 +50,7 @@ contract, `src/sync.ts:10-16`) and the pairing endpoints below.
 ## Why `server/` is deleted rather than deployed
 
 `server/src/db.ts:79-85` opens a file-backed SQLite database via `new DatabaseSync(path)`
-and enables WAL mode; `server/src/env.ts:18` points it at `./viberank.db`. Vercel functions
+and enables WAL mode; `server/src/env.ts:18` points it at `./grindboard.db`. Vercel functions
 have no durable filesystem — writes are lost between invocations and concurrent instances
 do not share state. Losing `agent_tokens.baseline_json` is worse than losing the board: the
 anti-cheat in `applyIngest` credits *deltas against that baseline*, so a reset baseline lets
@@ -69,7 +69,7 @@ mechanical but touches every call site.
 
 ### A1. Official Discord application
 
-`DEFAULT_CONFIG.discordClientId` (`src/config.ts:34`) ships with viberank's own registered
+`DEFAULT_CONFIG.discordClientId` (`src/config.ts:34`) ships with grindboard's own registered
 application ID, exported as a single constant `OFFICIAL_DISCORD_APP_ID`. Art assets live on
 that app, so every user's card renders correctly instead of showing a missing image. The
 same application serves the web app's OAuth (`server/src/oauth.ts` already takes a client id
@@ -84,9 +84,9 @@ and secret), so there is one Discord app total.
 
 ### A2. npm distribution
 
-`package.json:6` already declares `"bin": { "viberank": "dist/index.js" }`. Add
-`repository`, `homepage`, and `files`; publish. Install becomes `npx viberank` or
-`bunx viberank`.
+`package.json:6` already declares `"bin": { "grindboard": "dist/index.js" }`. Add
+`repository`, `homepage`, and `files`; publish. Install becomes `npx grindboard` or
+`bunx grindboard`.
 
 ### A3. Pairing (device-authorization flow)
 
@@ -108,7 +108,7 @@ agent                          web app                        user
   │   { deviceCode }              │                             │
   │◄── { accountToken } ──────────┤                             │
   │                               │                             │
-  └─ writes accountToken into ~/.viberank/config.json           │
+  └─ writes accountToken into ~/.grindboard/config.json           │
 ```
 
 `src/config.ts:58` already owns writes to that file, so the agent writing its own token is
@@ -166,15 +166,15 @@ Delete `src/statsServer.ts` (213 lines) and `statsPort` from config. Terminal ou
 replaces it:
 
 ```
-⚡ viberank — signed in as shashank
+⚡ grindboard — signed in as shashank
 ◆ Platinum · PRO      ⏱ 2h 14m today
-#7 on the board → viberank.dev/u/shashank
+#7 on the board → grindboard.tech/u/shashank
 
 watching: Claude Code, Codex
 ```
 
 Not signed in, the agent still tracks locally and drives the Discord card; it prints a
-`npx viberank login` hint instead of a rank.
+`npx grindboard login` hint instead of a rank.
 
 ### A5. Privacy story
 

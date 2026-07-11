@@ -2,7 +2,7 @@ import { Client } from "@xhayper/discord-rpc";
 import { planBadge } from "./plan.js";
 import type { Plan, TierResult } from "./types.js";
 
-export const REPO_URL = "https://github.com/shashank03-dev/viberank";
+export const REPO_URL = "https://github.com/shashank03-dev/grindboard";
 
 export interface PresenceState {
   activeToolNames: string[];
@@ -46,7 +46,7 @@ export class PresenceManager {
     if (!this.opts.clientId) {
       console.warn(
         "[presence] No discordClientId set — the Discord card is disabled. " +
-          "Add your Application ID to ~/.viberank/config.json (see README).",
+          "Add your Application ID to ~/.grindboard/config.json (see README).",
       );
       return;
     }
@@ -110,7 +110,7 @@ export function buildActivity(state: PresenceState, opts: PresenceOptions) {
   const isActive = state.activeToolNames.length > 0;
   if (!isActive && !opts.showIdlePresence) return null;
 
-  const rankPrefix = state.rank !== null ? `#${state.rank} on viberank · ` : "";
+  const rankPrefix = state.rank !== null ? `#${state.rank} on grindboard · ` : "";
   const tierLine = `${rankPrefix}${state.tier.glyph} ${state.tier.name} · ${planBadge(state.plan)}`;
   const details = isActive
     ? `Coding · ${state.activeToolNames.join(" + ")}`.slice(0, 128)
@@ -119,12 +119,12 @@ export function buildActivity(state: PresenceState, opts: PresenceOptions) {
   const activity: Record<string, unknown> = {
     details,
     state: tierLine.slice(0, 128),
-    largeImageKey: "viberank",
-    largeImageText: "viberank · vibe & climb",
+    largeImageKey: "grindboard",
+    largeImageText: "grindboard · vibe & climb",
     smallImageKey: state.plan === "unknown" ? undefined : state.plan,
     smallImageText: `${planBadge(state.plan)} plan`,
     buttons: [
-      { label: "⚡ Get viberank", url: REPO_URL },
+      { label: "⚡ Get grindboard", url: REPO_URL },
       { label: "☕ Support", url: opts.donateUrl },
     ],
   };

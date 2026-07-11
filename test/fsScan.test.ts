@@ -7,7 +7,7 @@ import { newestMtimeMs } from "../src/fsScan.js";
 let root: string;
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), "viberank-scan-"));
+  root = mkdtempSync(join(tmpdir(), "grindboard-scan-"));
   mkdirSync(join(root, "nested", "deep"), { recursive: true });
   const write = (rel: string, mtimeSec: number) => {
     const p = join(root, rel);

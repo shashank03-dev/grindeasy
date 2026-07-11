@@ -5,9 +5,9 @@
 
 ## Problem
 
-Getting a working viberank card takes six manual steps: create a Discord
+Getting a working grindboard card takes six manual steps: create a Discord
 application, upload four art assets under exact keys, hand-edit
-`~/.viberank/config.json`, then discover and run a separate command to join the
+`~/.grindboard/config.json`, then discover and run a separate command to join the
 leaderboard. Once running, the card never shows the thing the project is about —
 where you stand on the board.
 
@@ -36,8 +36,8 @@ counter. A project rename. Any new board endpoint. Supporter cosmetics.
 
 ### 1. Zero-step setup
 
-**Official Discord application.** One viberank Discord app is created once, its
-art assets uploaded under the keys the code already expects (`viberank`, `api`,
+**Official Discord application.** One grindboard Discord app is created once, its
+art assets uploaded under the keys the code already expects (`grindboard`, `api`,
 `pro`, `max`), and its ID hardcoded into `OFFICIAL_DISCORD_APP_ID`.
 `DEFAULT_CONFIG.discordClientId` already reads that constant and `loadConfig()`
 already merges `config.json` over the defaults, so a user wanting their own
@@ -46,9 +46,9 @@ branding still just sets `discordClientId` — the override costs no new code.
 `printSetupHelp()` becomes unreachable on the happy path. It stays as the
 fallback for anyone who blanks the constant.
 
-**Distribution.** The npm name `viberank` is owned by an unrelated project
-(`sculptdotfun/viberank`, v1.0.3). Publish as `@shashank03-dev/viberank` so the
-install path is `npx @shashank03-dev/viberank`. Requires
+**Distribution.** The npm name `grindboard` is owned by an unrelated project
+(`sculptdotfun/grindboard`, v1.0.3). Publish as `grindboard` so the
+install path is `npx grindboard`. Requires
 `publishConfig.access: "public"`, a `files` allowlist, and a `prepublishOnly`
 build so `dist/` (which `bin` already points at) exists in the tarball.
 
@@ -61,7 +61,7 @@ Join the global leaderboard? [Y/n]
 
 On yes it runs the device-authorization flow in `src/pair.ts` and writes its own
 token via `updateConfig`. When stdin is not a TTY (CI, piped input), the prompt
-is skipped and the existing hint is printed instead. `viberank login` remains for
+is skipped and the existing hint is printed instead. `grindboard login` remains for
 re-pairing later.
 
 The agent half of that flow existed; **the server half did not**. `src/pair.ts`
@@ -98,7 +98,7 @@ response into its existing `SyncState`. `buildSnapshot` already surfaces
 
 ```
 Coding · Claude Code + Codex
-#12 on viberank · ◆ Platinum · PRO
+#12 on grindboard · ◆ Platinum · PRO
 ```
 
 When rank is null the state line is exactly what it is today

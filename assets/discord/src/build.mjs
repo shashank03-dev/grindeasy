@@ -21,7 +21,7 @@ const PLAN_BADGES = [
 ];
 
 async function main() {
-  await sharp(path.join(SRC, "mark.svg")).resize(1024, 1024).png().toFile(path.join(OUT, "viberank.png"));
+  await sharp(path.join(SRC, "mark.svg")).resize(1024, 1024).png().toFile(path.join(OUT, "grindboard.png"));
 
   for (const p of PLAN_BADGES) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
@@ -33,7 +33,7 @@ async function main() {
 
   await sharp(path.join(SRC, "cover.svg")).resize(1024, 576).png().toFile(path.join(OUT, "invite-cover.png"));
 
-  console.log("Wrote viberank.png, api.png, pro.png, max.png, invite-cover.png to", OUT);
+  console.log("Wrote grindboard.png, api.png, pro.png, max.png, invite-cover.png to", OUT);
 }
 
 main().catch((e) => {

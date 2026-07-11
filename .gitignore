@@ -6,7 +6,7 @@ dist/
 .env.*
 coverage/
 # local runtime data (never committed)
-.viberank/
+.grindboard/
 
 # web
 web/.next/

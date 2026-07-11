@@ -1,8 +1,8 @@
 # Build from the REPO ROOT (the server imports shared scoring from ../src):
-#   docker build -f server/Dockerfile -t viberank-server .
-#   docker run -p 8787:8787 -v viberank-data:/data \
-#     -e DB_PATH=/data/viberank.db -e BASE_URL=https://your.domain \
-#     -e DISCORD_CLIENT_ID=... -e DISCORD_CLIENT_SECRET=... viberank-server
+#   docker build -f server/Dockerfile -t grindboard-server .
+#   docker run -p 8787:8787 -v grindboard-data:/data \
+#     -e DB_PATH=/data/grindboard.db -e BASE_URL=https://your.domain \
+#     -e DISCORD_CLIENT_ID=... -e DISCORD_CLIENT_SECRET=... grindboard-server
 FROM node:24-alpine
 
 WORKDIR /app
@@ -15,7 +15,7 @@ COPY server/src ./server/src
 COPY server/tsconfig.json ./server/
 
 ENV NODE_ENV=production
-ENV DB_PATH=/data/viberank.db
+ENV DB_PATH=/data/grindboard.db
 EXPOSE 8787
 
 WORKDIR /app/server

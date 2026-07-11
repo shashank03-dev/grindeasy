@@ -1,4 +1,4 @@
-# viberank
+# grindboard
 
 ## What it is
 

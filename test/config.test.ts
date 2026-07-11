@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -12,11 +12,11 @@ import {
   updateConfig,
 } from "../src/config.js";
 
-/** A throwaway $HOME so tests never touch the real ~/.viberank. */
+/** A throwaway $HOME so tests never touch the real ~/.grindboard. */
 function fakeHome(config?: Record<string, unknown>): string {
-  const home = mkdtempSync(join(tmpdir(), "viberank-"));
+  const home = mkdtempSync(join(tmpdir(), "grindboard-"));
   if (config) {
-    mkdirSync(join(home, ".viberank"), { recursive: true });
+    mkdirSync(join(home, ".grindboard"), { recursive: true });
     writeFileSync(configPath(home), JSON.stringify(config), "utf8");
   }
   return home;
@@ -78,5 +78,52 @@ describe("updateConfig", () => {
       accountToken: "tok",
       declaredPlan: "max",
     });
+  });
+});
+
+describe("migrateLegacyDir", () => {
+  /** A pre-rename install: stats and a paired token sitting in ~/.viberank. */
+  function legacyHome(): string {
+    const home = mkdtempSync(join(tmpdir(), "grindboard-legacy-"));
+    mkdirSync(join(home, ".viberank"), { recursive: true });
+    writeFileSync(
+      join(home, ".viberank", "config.json"),
+      JSON.stringify({ accountToken: "paired-token", declaredPlan: "max" }),
+      "utf8",
+    );
+    writeFileSync(
+      join(home, ".viberank", "stats.json"),
+      JSON.stringify({ totalCombos: 42 }),
+      "utf8",
+    );
+    return home;
+  }
+
+  it("carries a renamed install's hours and token across, so nobody resets to Bronze", () => {
+    const home = legacyHome();
+    const { config } = loadConfig(home);
+
+    expect(config.accountToken).toBe("paired-token");
+    expect(config.declaredPlan).toBe("max");
+    // The stats file — the actual tier — comes too.
+    const stats = JSON.parse(readFileSync(join(home, ".grindboard", "stats.json"), "utf8"));
+    expect(stats.totalCombos).toBe(42);
+    expect(existsSync(join(home, ".viberank"))).toBe(false);
+  });
+
+  it("never clobbers an existing install with a stale legacy one", () => {
+    const home = legacyHome();
+    mkdirSync(join(home, ".grindboard"), { recursive: true });
+    writeFileSync(configPath(home), JSON.stringify({ accountToken: "current-token" }), "utf8");
+
+    const { config } = loadConfig(home);
+    expect(config.accountToken).toBe("current-token");
+  });
+
+  it("is a no-op for a fresh install with no legacy directory", () => {
+    const home = mkdtempSync(join(tmpdir(), "grindboard-fresh-"));
+    const { config, created } = loadConfig(home);
+    expect(created).toBe(true);
+    expect(config.accountToken).toBe("");
   });
 });
