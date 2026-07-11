@@ -189,21 +189,6 @@ line and everything else keeps working.
 | `askedToInstallService` | `false` | Set once we've offered the background service, so you're never asked twice |
 | `tools` | `[]` | Override tool detection (id, name, activityDirs, extensions) |
 
-## Roadmap
-
-- **Phase 1 (done)** — local agent, Discord card, active-time tracking, personal
-  tiers, local dashboard. Claude Code + Codex + OpenCode.
-- **Phase 2 (done)** — backend with "Login with Discord", global leaderboard,
-  plan badges, anti-cheat ingest. See [`server/`](./server).
-- **Phase 3 (done)** — Cursor / Gemini CLI / Aider detection, achievements, CI,
-  Docker deploy.
-- **Phase 4 (done)** — zero-step install, live rank on the card, minute-fresh
-  board sync.
-- **Phase 5 (done, 0.3.3)** — background service installer (`grindeasy service`
-  install/uninstall/status) for Linux, macOS and Windows, with a duplicate-run
-  guard.
-- **Next** — more tools, supporter cosmetics.
-
 ## Support
 
 If grindeasy is useful to you, a coffee keeps it going: set your own link in
