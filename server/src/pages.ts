@@ -125,7 +125,7 @@ function shell(title: string, body: string): string {
   .empty { text-align: center; color: #8b93a7; padding: 26px 0; }
 </style></head>
 <body><div class="wrap">${body}
-<div class="foot">grindboard · open source · <a href="https://github.com/shashank03-dev/grindboard">GitHub</a> · only aggregate minutes ever leave your machine</div>
+<div class="foot">grindeasy · open source · <a href="https://github.com/shashank03-dev/grindeasy">GitHub</a> · only aggregate minutes ever leave your machine</div>
 </div></body></html>`;
 }
 
@@ -134,7 +134,7 @@ function nav(loggedIn: boolean): string {
     ? `<a href="/me">My profile</a><a href="/logout">Log out</a>`
     : `<a href="/auth/login">Log in with Discord</a>`;
   return `<div class="nav">
-    <a href="/" style="text-decoration:none;color:inherit"><span class="brand"><span class="dot"></span> grindboard</span></a>
+    <a href="/" style="text-decoration:none;color:inherit"><span class="brand"><span class="dot"></span> grindeasy</span></a>
     <span class="links">${right}</span>
   </div>`;
 }
@@ -160,16 +160,16 @@ export function renderLanding(entries: BoardEntry[], loggedIn: boolean): string 
     : `<tr><td colspan="7"><div class="empty">No hunters on the board yet — be the first.</div></td></tr>`;
 
   return shell(
-    "grindboard — global leaderboard",
+    "grindeasy — global leaderboard",
     `${nav(loggedIn)}
   <div class="hero">
     <h1>The global leaderboard for AI-assisted coding</h1>
-    <p>grindboard's local agent measures how much you <i>actively</i> code with Claude Code,
+    <p>grindeasy's local agent measures how much you <i>actively</i> code with Claude Code,
     Codex, OpenCode and friends — shows it on your Discord profile, and ranks you here.
     One board for everyone; the plan badge is context, never a multiplier.</p>
     <p style="margin-top:12px">
       <a class="btn" href="/auth/login">Join with Discord</a>
-      <a class="btn ghost" href="https://github.com/shashank03-dev/grindboard" style="margin-left:8px">Get the agent</a>
+      <a class="btn ghost" href="https://github.com/shashank03-dev/grindeasy" style="margin-left:8px">Get the agent</a>
     </p>
   </div>
   <div class="card">
@@ -201,7 +201,7 @@ export function renderMe(
     .join("");
 
   return shell(
-    "grindboard — my profile",
+    "grindeasy — my profile",
     `${nav(true)}
   <div class="card">
     <h2>${esc(user.username)} — ${esc(tier.glyph)} ${esc(tier.name)} <span class="badge">${esc(
@@ -215,7 +215,7 @@ export function renderMe(
     <p class="muted">This token identifies <b>your</b> agent. Treat it like a password — anyone
     who has it can submit stats as you.</p>
     <div class="token" style="margin:12px 0">${esc(agentToken)}</div>
-    <p class="muted">Add both lines to <code>~/.grindboard/config.json</code>, then restart the agent:</p>
+    <p class="muted">Add both lines to <code>~/.grindeasy/config.json</code>, then restart the agent:</p>
     <pre><code>{
   "serverUrl": "${esc(baseUrl)}",
   "accountToken": "${esc(agentToken)}"
@@ -234,7 +234,7 @@ export function renderMe(
  */
 export function renderPair(user: UserRecord, code: string, error?: string): string {
   return shell(
-    "grindboard — link your agent",
+    "grindeasy — link your agent",
     `${nav(true)}
   <div class="card">
     <h2>Link this device to ${esc(user.username)}</h2>
@@ -249,7 +249,7 @@ export function renderPair(user: UserRecord, code: string, error?: string): stri
         <a class="btn ghost" href="/" style="margin-left:8px">Cancel</a>
       </p>
     </form>
-    <p class="muted" style="margin-top:14px">If you didn't just start <code>grindboard</code>
+    <p class="muted" style="margin-top:14px">If you didn't just start <code>grindeasy</code>
     in a terminal, don't approve this — someone else may be trying to link their agent
     to your account.</p>
   </div>`,
@@ -258,7 +258,7 @@ export function renderPair(user: UserRecord, code: string, error?: string): stri
 
 export function renderMessage(title: string, message: string): string {
   return shell(
-    `grindboard — ${title}`,
+    `grindeasy — ${title}`,
     `${nav(false)}<div class="card"><h2>${esc(title)}</h2><p class="muted">${esc(message)}</p>
      <p style="margin-top:14px"><a class="btn ghost" href="/">← Back to the board</a></p></div>`,
   );

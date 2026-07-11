@@ -12,11 +12,11 @@ import {
   updateConfig,
 } from "../src/config.js";
 
-/** A throwaway $HOME so tests never touch the real ~/.grindboard. */
+/** A throwaway $HOME so tests never touch the real ~/.grindeasy. */
 function fakeHome(config?: Record<string, unknown>): string {
-  const home = mkdtempSync(join(tmpdir(), "grindboard-"));
+  const home = mkdtempSync(join(tmpdir(), "grindeasy-"));
   if (config) {
-    mkdirSync(join(home, ".grindboard"), { recursive: true });
+    mkdirSync(join(home, ".grindeasy"), { recursive: true });
     writeFileSync(configPath(home), JSON.stringify(config), "utf8");
   }
   return home;
@@ -84,7 +84,7 @@ describe("updateConfig", () => {
 describe("migrateLegacyDir", () => {
   /** A pre-rename install: stats and a paired token sitting in ~/.viberank. */
   function legacyHome(): string {
-    const home = mkdtempSync(join(tmpdir(), "grindboard-legacy-"));
+    const home = mkdtempSync(join(tmpdir(), "grindeasy-legacy-"));
     mkdirSync(join(home, ".viberank"), { recursive: true });
     writeFileSync(
       join(home, ".viberank", "config.json"),
@@ -106,14 +106,14 @@ describe("migrateLegacyDir", () => {
     expect(config.accountToken).toBe("paired-token");
     expect(config.declaredPlan).toBe("max");
     // The stats file — the actual tier — comes too.
-    const stats = JSON.parse(readFileSync(join(home, ".grindboard", "stats.json"), "utf8"));
+    const stats = JSON.parse(readFileSync(join(home, ".grindeasy", "stats.json"), "utf8"));
     expect(stats.totalCombos).toBe(42);
     expect(existsSync(join(home, ".viberank"))).toBe(false);
   });
 
   it("never clobbers an existing install with a stale legacy one", () => {
     const home = legacyHome();
-    mkdirSync(join(home, ".grindboard"), { recursive: true });
+    mkdirSync(join(home, ".grindeasy"), { recursive: true });
     writeFileSync(configPath(home), JSON.stringify({ accountToken: "current-token" }), "utf8");
 
     const { config } = loadConfig(home);
@@ -121,9 +121,23 @@ describe("migrateLegacyDir", () => {
   });
 
   it("is a no-op for a fresh install with no legacy directory", () => {
-    const home = mkdtempSync(join(tmpdir(), "grindboard-fresh-"));
+    const home = mkdtempSync(join(tmpdir(), "grindeasy-fresh-"));
     const { config, created } = loadConfig(home);
     expect(created).toBe(true);
     expect(config.accountToken).toBe("");
+  });
+
+  it("also carries across an install from the grindboard-named release", () => {
+    const home = mkdtempSync(join(tmpdir(), "grindeasy-grindboard-"));
+    mkdirSync(join(home, ".grindboard"), { recursive: true });
+    writeFileSync(
+      join(home, ".grindboard", "config.json"),
+      JSON.stringify({ accountToken: "grindboard-token" }),
+      "utf8",
+    );
+
+    const { config } = loadConfig(home);
+    expect(config.accountToken).toBe("grindboard-token");
+    expect(existsSync(join(home, ".grindboard"))).toBe(false);
   });
 });

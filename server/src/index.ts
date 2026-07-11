@@ -13,7 +13,7 @@ const server = createServer((req, res) => {
 });
 
 server.listen(env.port, () => {
-  console.log(`⚡ grindboard-server listening on :${env.port}`);
+  console.log(`⚡ grindeasy-server listening on :${env.port}`);
   console.log(`   base url  ${env.baseUrl}`);
   console.log(`   database  ${env.dbPath}`);
   console.log(
@@ -26,7 +26,7 @@ server.listen(env.port, () => {
 });
 
 function shutdown(): void {
-  console.log("\n[grindboard-server] shutting down…");
+  console.log("\n[grindeasy-server] shutting down…");
   server.close(() => {
     store.close();
     process.exit(0);

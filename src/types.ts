@@ -27,7 +27,7 @@ export interface ToolActivity {
   ageMs: number | null;
 }
 
-/** Persisted, cumulative stats. Written to ~/.grindboard/stats.json. */
+/** Persisted, cumulative stats. Written to ~/.grindeasy/stats.json. */
 export interface Stats {
   /** Cumulative active milliseconds per tool id. */
   activeMsByTool: Record<string, number>;

@@ -1,8 +1,8 @@
 {
-  "name": "grindboard-server",
+  "name": "grindeasy-server",
   "version": "0.1.0",
   "private": true,
-  "description": "grindboard leaderboard backend: Discord OAuth, stats ingest with anti-cheat clamping, and the global leaderboard site. Zero runtime dependencies (node:http + node:sqlite).",
+  "description": "grindeasy leaderboard backend: Discord OAuth, stats ingest with anti-cheat clamping, and the global leaderboard site. Zero runtime dependencies (node:http + node:sqlite).",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",

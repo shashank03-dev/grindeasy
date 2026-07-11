@@ -1,6 +1,6 @@
-# grindboard-server
+# grindeasy-server
 
-The hosted half of grindboard: Discord login, stats ingest with anti-cheat
+The hosted half of grindeasy: Discord login, stats ingest with anti-cheat
 clamping, and the global leaderboard site. **Zero runtime dependencies** — just
 Node ≥ 22.5 (`node:http` + `node:sqlite`).
 
@@ -24,12 +24,12 @@ Without Discord credentials the board and `/api/ingest` still work; only
 | `BASE_URL` | `http://localhost:$PORT` | Public URL, used for OAuth redirects and cookie security |
 | `DISCORD_CLIENT_ID` | — | From your Discord application (OAuth2 tab) |
 | `DISCORD_CLIENT_SECRET` | — | Same page — keep it secret |
-| `DB_PATH` | `./grindboard.db` | SQLite file (use a persistent volume in production) |
+| `DB_PATH` | `./grindeasy.db` | SQLite file (use a persistent volume in production) |
 
 ## Discord application setup
 
-1. <https://discord.com/developers/applications> → your grindboard app → **OAuth2**.
-2. Add a redirect: `BASE_URL/auth/callback` (e.g. `https://grindboard.fly.dev/auth/callback`).
+1. <https://discord.com/developers/applications> → your grindeasy app → **OAuth2**.
+2. Add a redirect: `BASE_URL/auth/callback` (e.g. `https://grindeasy.fly.dev/auth/callback`).
 3. Copy the Client ID and Client Secret into the env vars above.
 
 The same Discord application can serve both the Rich Presence card and this
@@ -77,10 +77,10 @@ as an honest one. One board, plan shown as a badge, never as a multiplier.
 
 ```bash
 # from the repo root
-docker build -f server/Dockerfile -t grindboard-server .
-docker run -p 8787:8787 -v grindboard-data:/data \
+docker build -f server/Dockerfile -t grindeasy-server .
+docker run -p 8787:8787 -v grindeasy-data:/data \
   -e BASE_URL=https://your.domain \
-  -e DISCORD_CLIENT_ID=... -e DISCORD_CLIENT_SECRET=... grindboard-server
+  -e DISCORD_CLIENT_ID=... -e DISCORD_CLIENT_SECRET=... grindeasy-server
 ```
 
 Works as-is on Fly.io (`fly launch`, mount a volume at `/data`), Render,

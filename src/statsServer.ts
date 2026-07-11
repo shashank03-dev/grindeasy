@@ -128,7 +128,7 @@ export function renderPage(s: Snapshot): string {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <noscript><meta http-equiv="refresh" content="15"/></noscript>
-<title>grindboard</title>
+<title>grindeasy</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -170,7 +170,7 @@ export function renderPage(s: Snapshot): string {
 </style></head>
 <body><div class="card">
   <div>
-    <div class="brand"><span class="dot${s.activeNow.length ? " active" : ""}"></span> grindboard</div>
+    <div class="brand"><span class="dot${s.activeNow.length ? " active" : ""}"></span> grindeasy</div>
     <div class="status" id="status">${esc(activeLabelOf(s))}</div>
   </div>
   <div class="tier">
@@ -187,7 +187,7 @@ export function renderPage(s: Snapshot): string {
   </div>
   <div class="chips" id="chips">${chips}</div>
   <div class="rows" id="rows">${toolRows}</div>
-  <a class="donate" href="${esc(s.donateUrl)}" target="_blank" rel="noopener">☕ Support grindboard</a>
+  <a class="donate" href="${esc(s.donateUrl)}" target="_blank" rel="noopener">☕ Support grindeasy</a>
   <div class="foot" id="foot">${esc(syncLineOf(s))}</div>
 </div>
 <script>${DASHBOARD_SCRIPT}</script>
