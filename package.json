@@ -1,6 +1,6 @@
 {
   "name": "grindeasy",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Discord Rich Presence + personal tiers for AI coding tools (Claude Code, Codex, OpenCode). Shows what you're actively coding with, tracks your tier, and (Phase 2) feeds a global leaderboard.",
   "type": "module",
   "bin": {
