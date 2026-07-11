@@ -120,7 +120,7 @@ export function buildActivity(state: PresenceState, opts: PresenceOptions) {
     details,
     state: tierLine.slice(0, 128),
     largeImageKey: "grindeasy",
-    largeImageText: "grindeasy · vibe & climb",
+    largeImageText: "grindeasy · rank up while you ship",
     smallImageKey: state.plan === "unknown" ? undefined : state.plan,
     smallImageText: `${planBadge(state.plan)} plan`,
     buttons: [
