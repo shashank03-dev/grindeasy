@@ -23,7 +23,7 @@ export default async function PairPage({
   const { code = "", error } = await searchParams;
 
   if (!code) {
-    return <Notice title="No pairing code">Start pairing from your terminal with `viberank login`.</Notice>;
+    return <Notice title="No pairing code">Start pairing from your terminal with `grindboard login`.</Notice>;
   }
 
   const user = await currentUser();
@@ -35,7 +35,7 @@ export default async function PairPage({
   if (!request) {
     return (
       <Notice title="That code expired">
-        Pairing codes last ten minutes. Run `viberank login` again to get a fresh one.
+        Pairing codes last ten minutes. Run `grindboard login` again to get a fresh one.
       </Notice>
     );
   }

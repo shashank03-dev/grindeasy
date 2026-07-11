@@ -1,8 +1,8 @@
 {
-  "name": "viberank-server",
+  "name": "grindboard-server",
   "version": "0.1.0",
   "private": true,
-  "description": "viberank leaderboard backend: Discord OAuth, stats ingest with anti-cheat clamping, and the global leaderboard site. Zero runtime dependencies (node:http + node:sqlite).",
+  "description": "grindboard leaderboard backend: Discord OAuth, stats ingest with anti-cheat clamping, and the global leaderboard site. Zero runtime dependencies (node:http + node:sqlite).",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",

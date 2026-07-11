@@ -1,8 +1,8 @@
-# ⚡ viberank
+# ⚡ grindboard
 
 **Show what you're actively coding with — right on your Discord profile — and climb the tiers.**
 
-viberank is a tiny local agent that watches which AI coding tools you're *actively*
+grindboard is a tiny local agent that watches which AI coding tools you're *actively*
 using (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Aider), shows a live
 **Discord Rich Presence** card, tracks your personal **tier** (Bronze → Diamond)
 and **achievements**, and streams your standing to a **global leaderboard** with
@@ -15,7 +15,7 @@ Free forever. If it makes your day a little better, [buy the author a coffee](#s
 
 ```
   Coding · Claude Code + Codex
-  #12 on viberank · ◆ Platinum · PRO      ⏱ 2h 14m
+  #12 on grindboard · ◆ Platinum · PRO      ⏱ 2h 14m
 ```
 
 ---
@@ -41,7 +41,7 @@ Requires **Node.js ≥ 20** and the **Discord desktop app** (Rich Presence works
 through the desktop client, not the web/mobile app).
 
 ```bash
-npx @shashank03-dev/viberank
+npx grindboard
 ```
 
 That's the whole setup. The card appears on your profile as soon as a tracked
@@ -52,12 +52,12 @@ copy). Say no and it stays entirely local.
 
 Open the local dashboard at **http://localhost:4599**.
 
-> The npm name `viberank` belongs to an unrelated project, which is why the
+> The npm name `grindboard` belongs to an unrelated project, which is why the
 > package is scoped.
 
 ## The Discord card
 
-The card works out of the box — viberank ships its own Discord application, so
+The card works out of the box — grindboard ships its own Discord application, so
 there is nothing to create and nothing to upload. Two things must be true on
 your side:
 
@@ -77,23 +77,23 @@ these *exact* asset keys (Discord asset keys can't be renamed after upload):
 
 | File | Asset key | Used as |
 |---|---|---|
-| `assets/discord/viberank.png` | `viberank` | large image |
+| `assets/discord/grindboard.png` | `grindboard` | large image |
 | `assets/discord/api.png` | `api` | small badge, API-key plan |
 | `assets/discord/pro.png` | `pro` | small badge, Pro plan |
 | `assets/discord/max.png` | `max` | small badge, Max plan |
 
-Then set `discordClientId` in `~/.viberank/config.json` to your Application ID.
+Then set `discordClientId` in `~/.grindboard/config.json` to your Application ID.
 To regenerate the PNGs from source, run `node assets/discord/src/build.mjs`.
 
 </details>
 
 ## Configuration
 
-`~/.viberank/config.json`:
+`~/.grindboard/config.json`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `discordClientId` | viberank's own app | Override only to use your own Discord application |
+| `discordClientId` | grindboard's own app | Override only to use your own Discord application |
 | `declaredPlan` | `"pro"` | `"pro"` or `"max"` — used only if you're on a subscription (API is auto-detected) |
 | `pollIntervalMs` | `5000` | How often to check for activity |
 | `activeWindowMs` | `60000` | A tool is "active" if its files changed within this window |
@@ -114,7 +114,7 @@ To regenerate the PNGs from source, run `node assets/discord/src/build.mjs`.
 first run; if you decline (or you're not on a terminal), you can join later with:
 
 ```bash
-viberank login
+grindboard login
 ```
 
 Either way, pairing is a device flow like `gh auth login` — you authorize a short
@@ -124,7 +124,7 @@ and no file to edit.
 Once paired, the agent pushes your *aggregate totals* every minute while you're
 actively coding, and backs off to every 5 minutes when idle. The server credits
 only sanity-clamped deltas (you can't claim more time than actually elapsed), and
-answers each push with your current rank — which is what puts `#12 on viberank`
+answers each push with your current rank — which is what puts `#12 on grindboard`
 on your card. One board for everyone; the API/PRO/MAX badge is context, never a
 score multiplier.
 
@@ -158,7 +158,7 @@ line and everything else keeps working.
 
 ## Support
 
-If viberank is useful to you, a coffee keeps it going: set your own link in
+If grindboard is useful to you, a coffee keeps it going: set your own link in
 `donateUrl`, or support the project via the link on the dashboard. Thank you 🙏
 
 ## License

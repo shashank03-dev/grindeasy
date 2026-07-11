@@ -25,7 +25,7 @@ describe("buildActivity", () => {
   it("puts the rank in front of the tier line", () => {
     const activity = buildActivity(state({ rank: 12 }), opts);
     expect(activity?.details).toBe("Coding · Claude Code + Codex");
-    expect(activity?.state).toBe("#12 on viberank · ◆ Platinum · PRO");
+    expect(activity?.state).toBe("#12 on grindboard · ◆ Platinum · PRO");
   });
 
   it("falls back to the plain tier line when rank is unknown", () => {
@@ -36,7 +36,7 @@ describe("buildActivity", () => {
   it("shows rank while idle too, so the card keeps standing visible", () => {
     const activity = buildActivity(state({ activeToolNames: [], sessionStartMs: null, rank: 3 }), opts);
     expect(activity?.details).toBe("Idle");
-    expect(activity?.state).toBe("#3 on viberank · ◆ Platinum · PRO");
+    expect(activity?.state).toBe("#3 on grindboard · ◆ Platinum · PRO");
     expect(activity?.startTimestamp).toBeUndefined();
   });
 
@@ -63,7 +63,7 @@ describe("buildActivity", () => {
 
   it("keeps the existing buttons", () => {
     expect(buildActivity(state(), opts)?.buttons).toEqual([
-      { label: "⚡ Get viberank", url: REPO_URL },
+      { label: "⚡ Get grindboard", url: REPO_URL },
       { label: "☕ Support", url: "https://coffee.example" },
     ]);
   });

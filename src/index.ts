@@ -18,13 +18,13 @@ import { Tracker } from "./tracker.js";
  */
 function printSetupHelp(): void {
   console.log(`
-┌─ viberank setup ────────────────────────────────────────────┐
+┌─ grindboard setup ────────────────────────────────────────────┐
   No Discord Application ID is configured, so the card is off.
   Tracking and the leaderboard still work without it.
 
   To enable the card, create a free application at
     https://discord.com/developers/applications
-  upload a Rich Presence art asset named "viberank", then set
+  upload a Rich Presence art asset named "grindboard", then set
     "discordClientId" in ${configPath()}
 └─────────────────────────────────────────────────────────────┘
 `);
@@ -48,7 +48,7 @@ async function pairWithBoard(serverUrl: string): Promise<string> {
   return token;
 }
 
-/** `viberank login` — pair explicitly, e.g. to re-pair after revoking a device. */
+/** `grindboard login` — pair explicitly, e.g. to re-pair after revoking a device. */
 async function login(): Promise<void> {
   const { config } = loadConfig();
   if (!config.serverUrl) {
@@ -56,13 +56,13 @@ async function login(): Promise<void> {
     process.exit(1);
   }
   await pairWithBoard(config.serverUrl);
-  console.log(`\n  ✓ Paired. Run \`viberank\` and your time starts counting.\n`);
+  console.log(`\n  ✓ Paired. Run \`grindboard\` and your time starts counting.\n`);
 }
 
 /**
  * Offer the leaderboard once, on the first interactive run. Sync stays opt-in —
  * nothing is sent anywhere unless a human answers yes — but nobody has to know
- * that `viberank login` exists to find the board.
+ * that `grindboard login` exists to find the board.
  *
  * Returns the account token if pairing completed, else "".
  */
@@ -85,7 +85,7 @@ async function offerLeaderboard(config: Config): Promise<string> {
     rl.close();
   }
   if (/^n/i.test(answer.trim())) {
-    console.log(`  No problem — staying local. Run \`viberank login\` any time.\n`);
+    console.log(`  No problem — staying local. Run \`grindboard login\` any time.\n`);
     return "";
   }
 
@@ -97,7 +97,7 @@ async function offerLeaderboard(config: Config): Promise<string> {
     // A failed pairing must never stop the agent: the card and local tracking
     // work perfectly well without a board.
     console.warn(`  Pairing didn't finish (${(err as Error).message}).`);
-    console.warn(`  Run \`viberank login\` to try again.\n`);
+    console.warn(`  Run \`grindboard login\` to try again.\n`);
     return "";
   }
 }
@@ -141,13 +141,13 @@ async function main(): Promise<void> {
   );
 
   const startTier = computeTier(stats);
-  console.log(`⚡ viberank running`);
+  console.log(`⚡ grindboard running`);
   console.log(`   tier      ${startTier.glyph} ${startTier.name}  ·  plan ${planBadge(plan)}`);
   console.log(`   dashboard http://localhost:${config.statsPort}`);
   console.log(`   tools     ${tools.map((t) => t.name).join(", ")}`);
   console.log(
     `   sync      ${
-      sync.enabled ? `→ ${config.serverUrl}` : "off — run `viberank login` to join the board"
+      sync.enabled ? `→ ${config.serverUrl}` : "off — run `grindboard login` to join the board"
     }`,
   );
   console.log(`   repo      ${REPO_URL}`);
@@ -198,7 +198,7 @@ async function main(): Promise<void> {
   async function shutdown(): Promise<void> {
     if (!running) return;
     running = false;
-    console.log("\n[viberank] saving and shutting down…");
+    console.log("\n[grindboard] saving and shutting down…");
     saveStats(dir, stats);
     server.close();
     await presence.destroy();
@@ -211,6 +211,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error("[viberank] fatal:", err);
+  console.error("[grindboard] fatal:", err);
   process.exit(1);
 });
