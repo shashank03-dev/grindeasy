@@ -60,18 +60,17 @@ export interface Config {
  * disallowed; setting it back to "" restores the per-user flow with no other
  * code changes.
  */
-export const OFFICIAL_DISCORD_APP_ID = "";
+export const OFFICIAL_DISCORD_APP_ID = "1525448643426123826";
 
 /**
- * The hosted leaderboard, which will live at https://grindboard.tech. Empty
- * until the server is actually deployed there: a URL that doesn't answer would
- * make first run offer a board it can't reach.
+ * The hosted leaderboard. Live, so first run can offer to join it.
  *
- * With this empty, `offerLeaderboard` never fires and SyncClient stays off, so
- * the card and local tracking work exactly as they do with it set. Set it to
- * "https://grindboard.tech" once the server is live — no other change.
+ * This is a Vercel-assigned URL, not a domain we own — moving off Vercel means
+ * every already-installed agent keeps calling an address we no longer control.
+ * Point grindboard.tech here and change this constant BEFORE publishing to npm,
+ * while the only installs are ours.
  */
-export const OFFICIAL_SERVER_URL = "";
+export const OFFICIAL_SERVER_URL = "https://grindboard-iota.vercel.app";
 
 /**
  * The server refuses more than one ingest per token per minute (its
