@@ -5,14 +5,17 @@
 viberank is a tiny local agent that watches which AI coding tools you're *actively*
 using (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Aider), shows a live
 **Discord Rich Presence** card, tracks your personal **tier** (Bronze → Diamond)
-and **achievements**, and can sync to a **global leaderboard** with
+and **achievements**, and streams your standing to a **global leaderboard** with
 `[API] / [PRO] / [MAX]` badges (see [`server/`](./server) — self-hostable, zero deps).
+
+Your rank rides on the card and moves while you work — the board updates within a
+minute of the time being earned.
 
 Free forever. If it makes your day a little better, [buy the author a coffee](#support).
 
 ```
   Coding · Claude Code + Codex
-  ◆ Platinum · PRO      ⏱ 2h 14m
+  #12 on viberank · ◆ Platinum · PRO      ⏱ 2h 14m
 ```
 
 ---
@@ -38,31 +41,51 @@ Requires **Node.js ≥ 20** and the **Discord desktop app** (Rich Presence works
 through the desktop client, not the web/mobile app).
 
 ```bash
-git clone https://github.com/shashank03-dev/viberank
-cd viberank
-npm install
-npm start
+npx @shashank03-dev/viberank
 ```
 
-On first run it creates `~/.viberank/config.json` and prints setup help.
+That's the whole setup. The card appears on your profile as soon as a tracked
+tool is active — no Discord Developer Portal, no art assets, no config file to
+edit. On first run it asks once whether you'd like to join the global
+leaderboard; say yes and it pairs itself in your browser (one click, no token to
+copy). Say no and it stays entirely local.
+
 Open the local dashboard at **http://localhost:4599**.
 
-## Enable the Discord card (2 minutes)
+> The npm name `viberank` belongs to an unrelated project, which is why the
+> package is scoped.
 
-Tracking works immediately, but the Discord card needs a free Application ID:
+## The Discord card
 
-1. Go to <https://discord.com/developers/applications> → **New Application** → name it `viberank`.
-2. Copy the **Application ID**.
-3. Under **Rich Presence → Art Assets**, upload an image named **`viberank`**
-   (512×512). Optionally add `pro`, `max`, `api` icons for the small badge.
-4. Paste the ID into `~/.viberank/config.json`:
-   ```json
-   { "discordClientId": "YOUR_APPLICATION_ID" }
-   ```
-5. In Discord: **Settings → Activity Privacy → Share your activity** must be on.
-6. Make sure the Discord desktop app is running, then `npm start` again.
+The card works out of the box — viberank ships its own Discord application, so
+there is nothing to create and nothing to upload. Two things must be true on
+your side:
 
-Your card appears on your profile whenever a tracked tool is active.
+1. The **Discord desktop app is running** (Rich Presence goes through the
+   desktop client — the web and mobile apps can't show it).
+2. **Settings → Activity Privacy → Share your activity** is on.
+
+That's it. The card appears whenever a tracked tool is active.
+
+<details>
+<summary>Using your own Discord application instead</summary>
+
+Only needed if you want your own branding on the card. Create an application at
+<https://discord.com/developers/applications>, upload the images from
+[`assets/discord/`](./assets/discord) under **Rich Presence → Art Assets** with
+these *exact* asset keys (Discord asset keys can't be renamed after upload):
+
+| File | Asset key | Used as |
+|---|---|---|
+| `assets/discord/viberank.png` | `viberank` | large image |
+| `assets/discord/api.png` | `api` | small badge, API-key plan |
+| `assets/discord/pro.png` | `pro` | small badge, Pro plan |
+| `assets/discord/max.png` | `max` | small badge, Max plan |
+
+Then set `discordClientId` in `~/.viberank/config.json` to your Application ID.
+To regenerate the PNGs from source, run `node assets/discord/src/build.mjs`.
+
+</details>
 
 ## Configuration
 
@@ -70,7 +93,7 @@ Your card appears on your profile whenever a tracked tool is active.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `discordClientId` | `""` | Your Discord Application ID (required for the card) |
+| `discordClientId` | viberank's own app | Override only to use your own Discord application |
 | `declaredPlan` | `"pro"` | `"pro"` or `"max"` — used only if you're on a subscription (API is auto-detected) |
 | `pollIntervalMs` | `5000` | How often to check for activity |
 | `activeWindowMs` | `60000` | A tool is "active" if its files changed within this window |
@@ -78,21 +101,35 @@ Your card appears on your profile whenever a tracked tool is active.
 | `statsPort` | `4599` | Local dashboard port |
 | `donateUrl` | Buy Me a Coffee | Where the support button points |
 | `showIdlePresence` | `true` | Keep the card up (showing your tier) when idle |
-| `serverUrl` | `""` | Leaderboard server base URL (empty = sync off) |
-| `accountToken` | `""` | Your agent token from the server's `/me` page (empty = sync off) |
-| `syncIntervalMs` | `300000` | How often totals are pushed to the leaderboard |
+| `serverUrl` | hosted board | Leaderboard server base URL (empty = sync off) |
+| `accountToken` | `""` | Written by pairing — you never set this by hand (empty = sync off) |
+| `syncIntervalMs` | `300000` | How often totals are pushed while idle (min 60000) |
+| `activeSyncIntervalMs` | `60000` | How often totals are pushed while you're coding (min 60000) |
+| `askedToJoinBoard` | `false` | Set once we've offered the leaderboard, so you're never asked twice |
 | `tools` | `[]` | Override tool detection (id, name, activityDirs, extensions) |
 
-## Join the global leaderboard (optional)
+## The global leaderboard
 
-1. Open a viberank server (self-host one in 2 minutes — see [`server/README.md`](./server/README.md)).
-2. Click **Log in with Discord** → your `/me` page shows an **agent token**.
-3. Put `serverUrl` and `accountToken` into `~/.viberank/config.json` and restart.
+**Opt-in.** Nothing is sent anywhere until you say yes. The agent offers once on
+first run; if you decline (or you're not on a terminal), you can join later with:
 
-The agent then pushes your *aggregate totals* every 5 minutes. The server credits
-only sanity-clamped deltas (you can't claim more time than actually elapsed), so
-the board stays fair. One board for everyone — the API/PRO/MAX badge is context,
-never a score multiplier.
+```bash
+viberank login
+```
+
+Either way, pairing is a device flow like `gh auth login` — you authorize a short
+code in the browser and the agent writes its own token. There's no token to copy
+and no file to edit.
+
+Once paired, the agent pushes your *aggregate totals* every minute while you're
+actively coding, and backs off to every 5 minutes when idle. The server credits
+only sanity-clamped deltas (you can't claim more time than actually elapsed), and
+answers each push with your current rank — which is what puts `#12 on viberank`
+on your card. One board for everyone; the API/PRO/MAX badge is context, never a
+score multiplier.
+
+If the board is unreachable, or you never joined, the card simply drops the rank
+line and everything else keeps working.
 
 > Cursor, Gemini CLI and Aider detection is best-effort (session layouts vary by
 > version). If one isn't detected on your machine, override its `activityDirs`
@@ -115,7 +152,9 @@ never a score multiplier.
   plan badges, anti-cheat ingest. See [`server/`](./server).
 - **Phase 3 (done)** — Cursor / Gemini CLI / Aider detection, achievements, CI,
   Docker deploy.
-- **Next** — a hosted public instance, more tools, supporter cosmetics.
+- **Phase 4 (done)** — zero-step install, live rank on the card, minute-fresh
+  board sync.
+- **Next** — more tools, supporter cosmetics.
 
 ## Support
 

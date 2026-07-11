@@ -22,6 +22,58 @@ function fmtHours(h: number): string {
   return `${h.toFixed(1)}h`;
 }
 
+// Client-side updater for the leaderboard: polls /api/leaderboard and rebuilds
+// the table body in place, so the board reflects new syncs without a full page
+// reload. textContent is used for all values, so no escaping is needed.
+const BOARD_SCRIPT = `
+function fmtHours(h) { return h < 1 ? Math.round(h * 60) + "m" : h.toFixed(1) + "h"; }
+function cell(cls, text) {
+  const td = document.createElement("td");
+  if (cls) td.className = cls;
+  td.textContent = text; return td;
+}
+function renderBoard(entries) {
+  const tb = document.getElementById("board");
+  if (!tb) return;
+  if (!entries.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td"); td.colSpan = 7;
+    const d = document.createElement("div"); d.className = "empty";
+    d.textContent = "No hunters on the board yet — be the first.";
+    td.append(d); tr.append(td); tb.replaceChildren(tr); return;
+  }
+  tb.replaceChildren.apply(tb, entries.map(function (e) {
+    const tr = document.createElement("tr");
+    tr.append(cell("rank" + (e.rank <= 3 ? " top" : ""), "#" + e.rank));
+    const userTd = document.createElement("td");
+    const span = document.createElement("span"); span.className = "user";
+    if (e.avatarUrl) {
+      const img = document.createElement("img"); img.src = e.avatarUrl; img.alt = ""; span.append(img);
+    } else {
+      const ph = document.createElement("span"); ph.className = "ph"; span.append(ph);
+    }
+    span.append(document.createTextNode(e.username));
+    userTd.append(span); tr.append(userTd);
+    tr.append(cell("tier", e.tierGlyph + " " + e.tierName));
+    const badgeTd = document.createElement("td");
+    const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = e.planBadge;
+    badgeTd.append(badge); tr.append(badgeTd);
+    tr.append(cell("num", fmtHours(e.hours)));
+    tr.append(cell("num", String(e.combos)));
+    const xpTd = document.createElement("td"); xpTd.className = "num";
+    const b = document.createElement("b"); b.textContent = e.xp.toFixed(1); xpTd.append(b); tr.append(xpTd);
+    return tr;
+  }));
+}
+async function tickBoard() {
+  try {
+    const r = await fetch("/api/leaderboard", { cache: "no-store" });
+    if (r.ok) { const d = await r.json(); renderBoard(d.entries || []); }
+  } catch (e) { /* server restarting; keep the last good board */ }
+}
+setInterval(tickBoard, 5000);
+`;
+
 function shell(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en"><head>
@@ -124,9 +176,10 @@ export function renderLanding(entries: BoardEntry[], loggedIn: boolean): string 
     <table>
       <thead><tr><th>Rank</th><th>Hunter</th><th>Tier</th><th>Plan</th>
         <th style="text-align:right">Active</th><th style="text-align:right">Combos</th><th style="text-align:right">XP</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody id="board">${rows}</tbody>
     </table>
-  </div>`,
+  </div>
+  <script>${BOARD_SCRIPT}</script>`,
   );
 }
 
@@ -169,6 +222,36 @@ export function renderMe(
 }</code></pre>
     <p class="muted">The agent syncs every 5 minutes and only ever sends aggregate
     minutes per tool, combo count and plan label — never code, prompts or keys.</p>
+  </div>`,
+  );
+}
+
+/**
+ * The device-pairing approval page. Deliberately blunt about what's being
+ * authorized: a device flow's one real weakness is a user approving a code an
+ * attacker generated, and the only defence is that the user understands the
+ * code should have come from their own terminal.
+ */
+export function renderPair(user: UserRecord, code: string, error?: string): string {
+  return shell(
+    "viberank — link your agent",
+    `${nav(true)}
+  <div class="card">
+    <h2>Link this device to ${esc(user.username)}</h2>
+    <p class="muted">Your terminal is showing a code. Check it matches the one below,
+    then approve — this lets that agent submit coding time as you.</p>
+    ${error ? `<p style="color:#ff6b6b;margin-top:12px">${esc(error)}</p>` : ""}
+    <form method="post" action="/pair" style="margin-top:14px">
+      <input class="token" name="code" value="${esc(code)}" autocomplete="off"
+             spellcheck="false" style="width:100%;box-sizing:border-box;text-transform:uppercase"/>
+      <p style="margin-top:14px">
+        <button class="btn" type="submit">Approve this device</button>
+        <a class="btn ghost" href="/" style="margin-left:8px">Cancel</a>
+      </p>
+    </form>
+    <p class="muted" style="margin-top:14px">If you didn't just start <code>viberank</code>
+    in a terminal, don't approve this — someone else may be trying to link their agent
+    to your account.</p>
   </div>`,
   );
 }

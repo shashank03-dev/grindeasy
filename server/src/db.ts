@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS agent_tokens (
   created_at INTEGER NOT NULL,
   baseline_json TEXT
 );
+CREATE TABLE IF NOT EXISTS device_codes (
+  device_code TEXT PRIMARY KEY,
+  user_code TEXT UNIQUE NOT NULL,
+  expires_at INTEGER NOT NULL,
+  -- Null until a signed-in human approves this code in a browser.
+  user_id INTEGER,
+  -- Set once the agent has collected its token, so a code is never reused.
+  consumed INTEGER NOT NULL DEFAULT 0
+);
 `;
 
 export interface UserRecord {
@@ -45,6 +54,37 @@ export interface UserRecord {
 export interface AgentTokenRecord {
   userId: number;
   baseline: IngestBaseline | null;
+}
+
+/**
+ * The outcome of an agent polling for its token. Mirrors the wire protocol
+ * exactly, so the router can't accidentally report "ready" twice for one code.
+ */
+export type ClaimResult =
+  | { status: "pending" }
+  | { status: "expired" }
+  | { status: "ready"; userId: number };
+
+/** A pairing request, from the moment the agent asks until the agent collects. */
+export interface DeviceCodeRecord {
+  deviceCode: string;
+  userCode: string;
+  expiresAt: number;
+  /** Null until approved in a browser. */
+  userId: number | null;
+  consumed: boolean;
+}
+
+/**
+ * Human-typable code: no vowels (so it can't spell anything) and no 0/O/1/I
+ * (so it can't be misread off a terminal). Formatted ABCD-EFGH.
+ */
+const USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXYZ23456789";
+
+function newUserCode(): string {
+  const bytes = randomBytes(8);
+  const chars = Array.from(bytes, (b) => USER_CODE_ALPHABET[b % USER_CODE_ALPHABET.length]);
+  return `${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
 }
 
 interface UserRow {
@@ -64,6 +104,24 @@ function toUser(row: UserRow): UserRecord {
     avatar: row.avatar,
     plan: row.plan as Plan,
     combos: Number(row.combos),
+  };
+}
+
+interface DeviceCodeRow {
+  device_code: string;
+  user_code: string;
+  expires_at: number;
+  user_id: number | null;
+  consumed: number;
+}
+
+function toDeviceCode(row: DeviceCodeRow): DeviceCodeRecord {
+  return {
+    deviceCode: row.device_code,
+    userCode: row.user_code,
+    expiresAt: Number(row.expires_at),
+    userId: row.user_id === null ? null : Number(row.user_id),
+    consumed: Number(row.consumed) === 1,
   };
 }
 
@@ -186,6 +244,65 @@ export class Store {
     this.db
       .prepare(`UPDATE agent_tokens SET baseline_json = ? WHERE token = ?`)
       .run(JSON.stringify(baseline), token);
+  }
+
+  /** Begin a pairing. The agent holds the device code; the human types the user code. */
+  createDeviceCode(now: number, ttlMs: number): DeviceCodeRecord {
+    const record: DeviceCodeRecord = {
+      deviceCode: newToken(),
+      userCode: newUserCode(),
+      expiresAt: now + ttlMs,
+      userId: null,
+      consumed: false,
+    };
+    this.db
+      .prepare(
+        `INSERT INTO device_codes (device_code, user_code, expires_at) VALUES (?, ?, ?)`,
+      )
+      .run(record.deviceCode, record.userCode, record.expiresAt);
+    return record;
+  }
+
+  getDeviceCodeByUserCode(userCode: string, now: number): DeviceCodeRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM device_codes WHERE user_code = ? AND expires_at > ?`)
+      .get(userCode.toUpperCase(), now) as unknown as DeviceCodeRow | undefined;
+    return row ? toDeviceCode(row) : null;
+  }
+
+  /** A signed-in human vouches for the waiting agent. */
+  approveDeviceCode(userCode: string, userId: number, now: number): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE device_codes SET user_id = ?
+         WHERE user_code = ? AND expires_at > ? AND consumed = 0`,
+      )
+      .run(userId, userCode.toUpperCase(), now);
+    return Number(result.changes) > 0;
+  }
+
+  /**
+   * The agent collecting its token. Consumes the code on success, so a leaked
+   * device code can't be replayed — a second claim reports "expired", exactly
+   * as an unknown or timed-out code does.
+   */
+  claimDeviceCode(deviceCode: string, now: number): ClaimResult {
+    const row = this.db
+      .prepare(`SELECT * FROM device_codes WHERE device_code = ?`)
+      .get(deviceCode) as unknown as DeviceCodeRow | undefined;
+    if (!row) return { status: "expired" };
+
+    const record = toDeviceCode(row);
+    if (record.consumed || record.expiresAt <= now) return { status: "expired" };
+    if (record.userId === null) return { status: "pending" };
+
+    this.db.prepare(`UPDATE device_codes SET consumed = 1 WHERE device_code = ?`).run(deviceCode);
+    return { status: "ready", userId: record.userId };
+  }
+
+  /** Housekeeping: expired codes are worthless, so don't keep them around. */
+  purgeExpiredDeviceCodes(now: number): void {
+    this.db.prepare(`DELETE FROM device_codes WHERE expires_at <= ?`).run(now);
   }
 
   boardRows(): BoardRow[] {
