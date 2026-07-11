@@ -133,40 +133,40 @@ export function renderPage(s: Snapshot): string {
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(1200px 600px at 50% -10%, #1d2233, #0c0e16 60%); color: #e7e9f0;
+    background: radial-gradient(1200px 600px at 50% -10%, #13201a, #0a0d0c 60%); color: #e3e7e4;
     min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .card { width: 100%; max-width: 460px; background: #141826; border: 1px solid #232838;
+  .card { width: 100%; max-width: 460px; background: #101412; border: 1px solid rgba(130,211,153,.12);
     border-radius: 18px; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .3px; }
   .brand .dot { width: 10px; height: 10px; border-radius: 50%;
-    background: #6b7280; box-shadow: 0 0 12px transparent;
+    background: #5b6b60; box-shadow: 0 0 12px transparent;
     transition: background .4s ease, box-shadow .4s ease; }
-  .brand .dot.active { background: #4ade80; box-shadow: 0 0 12px #4ade80; }
-  .status { color: #9aa3b8; font-size: 13px; margin-top: 2px; }
+  .brand .dot.active { background: #82d399; box-shadow: 0 0 12px #82d399; }
+  .status { color: #838b87; font-size: 13px; margin-top: 2px; }
   .tier { margin: 22px 0 6px; display: flex; align-items: baseline; gap: 10px; }
   .tier .glyph { font-size: 30px; }
   .tier .name { font-size: 30px; font-weight: 800; }
   .tier .badge { margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: 1px;
-    padding: 4px 10px; border: 1px solid #33405e; border-radius: 999px; color: #b9c6ff; }
-  .bar { height: 8px; background: #212739; border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
+    padding: 4px 10px; border: 1px solid #2f5a3f; border-radius: 999px; color: #82d399; }
+  .bar { height: 8px; background: #1a211d; border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
   .bar > i { display: block; height: 100%; width: ${s.progressPct.toFixed(1)}%;
-    background: linear-gradient(90deg, #7c8cff, #b06bff); transition: width .5s ease; }
-  .next { color: #8b93a7; font-size: 12px; }
+    background: linear-gradient(90deg, #4b8057, #82d399); transition: width .5s ease; }
+  .next { color: #838b87; font-size: 12px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 22px 0; }
-  .stat { background: #0f1320; border: 1px solid #212739; border-radius: 12px; padding: 12px; text-align: center; }
+  .stat { background: #0c100e; border: 1px solid #1a211d; border-radius: 12px; padding: 12px; text-align: center; }
   .stat b { display: block; font-size: 20px; }
-  .stat span { color: #8b93a7; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  .stat span { color: #838b87; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
-  .chip { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid #212739;
-    color: #4b5265; }
-  .chip.on { color: #ffd166; border-color: #4d3f1f; background: rgba(255, 209, 102, .06); }
-  .rows { border-top: 1px solid #212739; padding-top: 14px; }
+  .chip { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid #1a211d;
+    color: #5b6b60; }
+  .chip.on { color: #82d399; border-color: #2f5a3f; background: rgba(130, 211, 153, .07); }
+  .rows { border-top: 1px solid #1a211d; padding-top: 14px; }
   .row { display: flex; justify-content: space-between; padding: 5px 0; }
-  .row.muted span { color: #6b7280; }
+  .row.muted span { color: #5b6b60; }
   .donate { display: block; text-align: center; margin-top: 22px; padding: 12px;
-    background: linear-gradient(90deg, #ffb703, #fb8500); color: #201400; font-weight: 800;
+    background: linear-gradient(90deg, #4b8057, #82d399); color: #09200f; font-weight: 800;
     border-radius: 12px; text-decoration: none; }
-  .foot { text-align: center; color: #5b6479; font-size: 11px; margin-top: 14px; }
+  .foot { text-align: center; color: #5b6b60; font-size: 11px; margin-top: 14px; }
 </style></head>
 <body><div class="card">
   <div>

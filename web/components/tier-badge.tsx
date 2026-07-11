@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
  * reserved for interactive state.
  */
 const TIER_STYLES: Record<string, string> = {
-  Bronze: "text-[oklch(0.68_0.09_55)]",
-  Silver: "text-[oklch(0.80_0.01_260)]",
-  Gold: "text-[oklch(0.82_0.14_90)]",
+  Bronze: "text-[oklch(0.70_0.09_55)]",
+  Silver: "text-[oklch(0.82_0.012_260)]",
+  Gold: "text-[oklch(0.83_0.145_90)]",
   Platinum: "text-[oklch(0.88_0.03_200)]",
-  Diamond: "text-[oklch(0.86_0.10_195)]",
+  Diamond: "text-[oklch(0.86_0.11_195)]",
 };
 
 export function TierBadge({ name, glyph }: { name: string; glyph: string }) {
