@@ -1,13 +1,5 @@
 import { PlanBadge, TierBadge } from "@/components/tier-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { getBoard } from "@/lib/board";
 import type { BoardEntry } from "@/lib/core/leaderboard";
 
@@ -20,110 +12,159 @@ function formatHours(hours: number): string {
   return `${hours.toFixed(1)}h`;
 }
 
+// Fixed-width, zero-padded rank — a real TUI list, where the column width itself
+// says "this is an ordered field". Ranks past 99 keep their natural width.
+function formatRank(rank: number): string {
+  return rank < 100 ? String(rank).padStart(2, "0") : String(rank);
+}
+
 export default async function LeaderboardPage() {
   const entries = await getBoard();
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-16">
-      <header className="mb-12">
-        <h1 className="font-mono text-sm font-medium tracking-wide text-primary">grindeasy</h1>
-        <p className="mt-3 max-w-[62ch] text-2xl font-semibold tracking-tight text-foreground">
-          Ranked by time actually spent coding with AI tools.
+    // Faint phosphor bleed from the top — the only ambient light on the surface.
+    <main className="relative mx-auto w-full max-w-4xl px-6 pb-24 pt-14 [background-image:radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]">
+      <header className="mb-10">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <span aria-hidden className="text-primary">▲</span> grindeasy
         </p>
-        <p className="mt-3 max-w-[65ch] text-sm text-muted-foreground">
+        {/* Fraunces at display optical size, with one italic word carrying the
+            product's whole promise — active time, not billed time. */}
+        <h1 className="mt-5 max-w-[15ch] font-heading text-[2rem] font-normal leading-[1.05] tracking-[-0.015em] text-foreground [font-optical-sizing:auto] [font-variation-settings:'opsz'_144] sm:text-5xl">
+          Time <em className="font-normal italic">actually</em> spent coding with AI.
+        </h1>
+        <p className="mt-5 max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
           Active time only, measured while a tool is working. Combos reward using two tools in the
           same five-minute window. Your plan is shown for context and never changes your score.
         </p>
-        <code className="mt-6 inline-block rounded border border-border bg-card px-3 py-2 font-mono text-sm text-foreground">
-          npx grindeasy
+        <code className="mt-7 inline-flex items-center gap-2.5 rounded-lg border border-input bg-card px-3.5 py-2.5 font-mono text-[13px] text-foreground">
+          <span className="text-primary">$</span> npx grindeasy
         </code>
       </header>
 
       {entries.length === 0 ? <EmptyBoard /> : <Board entries={entries} />}
+
+      <p className="mt-5 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground/70">
+        <span>Synced every 5 minutes. The agent self-reports; the server clamps.</span>
+      </p>
     </main>
   );
 }
 
 function Board({ entries }: { entries: BoardEntry[] }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="w-14 text-xs font-normal text-muted-foreground">Rank</TableHead>
-          <TableHead className="text-xs font-normal text-muted-foreground">Developer</TableHead>
-          <TableHead className="text-xs font-normal text-muted-foreground">Tier</TableHead>
-          <TableHead className="w-16 text-xs font-normal text-muted-foreground">Plan</TableHead>
-          <TableHead className="w-24 text-right text-xs font-normal text-muted-foreground">
-            Active
-          </TableHead>
-          <TableHead className="w-20 text-right text-xs font-normal text-muted-foreground">
-            Combos
-          </TableHead>
-          <TableHead className="w-24 text-right text-xs font-normal text-muted-foreground">
-            XP
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {entries.map((entry) => (
-          <TableRow key={entry.discordId}>
-            <TableCell
-              className={
-                entry.rank === 1
-                  ? "font-mono text-sm tabular-nums text-primary"
-                  : "font-mono text-sm tabular-nums text-muted-foreground"
-              }
-            >
-              {entry.rank}
-            </TableCell>
+    <section className="overflow-hidden rounded-xl border border-input bg-card shadow-[0_24px_60px_-30px_rgba(0,0,0,0.7)]">
+      {/* Title bar — the board framed as a running program, not a web section. */}
+      <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-3">
+        <p className="text-[13px] text-muted-foreground">
+          <span className="font-semibold text-foreground">Leaderboard</span> · top 100 · ranked by
+          XP
+        </p>
+        <span className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-primary">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60 motion-reduce:hidden" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+          </span>
+          live
+        </span>
+      </div>
 
-            <TableCell>
-              <span className="flex items-center gap-3">
-                {/* Avatar takes no size prop; sizing is Tailwind classes. */}
-                <Avatar className="h-7 w-7">
-                  {entry.avatarUrl ? <AvatarImage src={entry.avatarUrl} alt="" /> : null}
-                  <AvatarFallback className="text-[10px]">
-                    {entry.username.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="font-medium text-foreground">{entry.username}</span>
-              </span>
-            </TableCell>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[14.5px]">
+          <thead>
+            <tr className="border-b border-border text-[11px] uppercase tracking-[0.1em] text-muted-foreground/70">
+              <th className="w-[68px] px-4 py-3 text-left font-semibold">#</th>
+              <th className="px-4 py-3 text-left font-semibold">Developer</th>
+              <th className="px-4 py-3 text-left font-semibold">Tier</th>
+              <th className="px-4 py-3 text-left font-semibold">Plan</th>
+              <th className="px-4 py-3 text-right font-semibold">Active</th>
+              <th className="px-4 py-3 text-right font-semibold">Combos</th>
+              <th className="px-4 py-3 text-right font-semibold">XP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => {
+              const isTop = entry.rank === 1;
+              return (
+                <tr
+                  key={entry.discordId}
+                  className={
+                    isTop
+                      ? "border-b border-border bg-[linear-gradient(90deg,color-mix(in_oklch,var(--primary)_13%,transparent),transparent_65%)] transition-colors last:border-0"
+                      : "border-b border-border transition-colors last:border-0 hover:bg-secondary/50"
+                  }
+                >
+                  {/* Serif rank numerals — Fraunces threads the editorial blend
+                      into the data, like a magazine ranked list. */}
+                  <td
+                    className={
+                      isTop
+                        ? "px-4 py-3.5 font-heading text-[19px] tabular-nums text-primary [font-variation-settings:'opsz'_40] shadow-[inset_2px_0_0_var(--primary)]"
+                        : "px-4 py-3.5 font-heading text-[19px] tabular-nums text-muted-foreground [font-variation-settings:'opsz'_40]"
+                    }
+                  >
+                    {formatRank(entry.rank)}
+                  </td>
 
-            <TableCell>
-              <TierBadge name={entry.tierName} glyph={entry.tierGlyph} />
-            </TableCell>
+                  <td className="px-4 py-3.5">
+                    <span className="flex items-center gap-3">
+                      {/* Avatar takes no size prop; sizing is Tailwind classes. */}
+                      <Avatar className="h-7 w-7 rounded-lg">
+                        {entry.avatarUrl ? <AvatarImage src={entry.avatarUrl} alt="" /> : null}
+                        <AvatarFallback className="rounded-lg bg-secondary text-[10px] text-muted-foreground">
+                          {entry.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium tracking-[-0.005em] text-foreground">
+                        {entry.username}
+                      </span>
+                    </span>
+                  </td>
 
-            <TableCell>
-              <PlanBadge badge={entry.planBadge} />
-            </TableCell>
+                  <td className="px-4 py-3.5">
+                    <TierBadge name={entry.tierName} glyph={entry.tierGlyph} />
+                  </td>
 
-            <TableCell className="text-right font-mono text-sm tabular-nums text-foreground">
-              {formatHours(entry.hours)}
-            </TableCell>
+                  <td className="px-4 py-3.5">
+                    <PlanBadge badge={entry.planBadge} />
+                  </td>
 
-            <TableCell className="text-right font-mono text-sm tabular-nums text-muted-foreground">
-              {entry.combos}
-            </TableCell>
+                  {/* Active hours are the loudest data — the unit of the whole product. */}
+                  <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-foreground">
+                    {formatHours(entry.hours)}
+                  </td>
 
-            <TableCell className="text-right font-mono text-sm font-medium tabular-nums text-foreground">
-              {entry.xp.toFixed(1)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                  <td className="px-4 py-3.5 text-right tabular-nums text-muted-foreground">
+                    {entry.combos}
+                  </td>
+
+                  <td
+                    className={
+                      isTop
+                        ? "px-4 py-3.5 text-right font-semibold tabular-nums text-primary"
+                        : "px-4 py-3.5 text-right font-semibold tabular-nums text-foreground"
+                    }
+                  >
+                    {entry.xp.toFixed(1)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
 function EmptyBoard() {
   return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
+    <div className="rounded-xl border border-dashed border-input px-6 py-16 text-center">
       <p className="text-sm font-medium text-foreground">Nobody has paired an agent yet.</p>
       <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted-foreground">
-        Run <code className="font-mono text-foreground">npx grindeasy</code> in a terminal, then{" "}
-        <code className="font-mono text-foreground">grindeasy login</code> to claim the first place
-        on this board.
+        Run <code className="text-primary">npx grindeasy</code> in a terminal, then{" "}
+        <code className="text-primary">grindeasy login</code> to claim the first place on this
+        board.
       </p>
     </div>
   );

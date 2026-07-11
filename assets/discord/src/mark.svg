@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <defs>
-    <linearGradient id="bolt" x1="20" y1="4" x2="75" y2="96" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFC24D"/>
-      <stop offset="0.55" stop-color="#FF8A2B"/>
-      <stop offset="1" stop-color="#FF3D57"/>
-    </linearGradient>
-  </defs>
-  <rect x="0" y="0" width="100" height="100" fill="#12151B"/>
-  <polygon points="62,2 22,48 46,48 38,98 78,52 54,52" fill="url(#bolt)"/>
+  <rect x="0" y="0" width="100" height="100" fill="#0a0d0c"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- phosphor bloom, no filter needed -->
+    <polyline points="26,54 50,32 74,54" stroke="#82d399" stroke-width="22" stroke-opacity="0.12"/>
+    <!-- lower echo: the rank you just left -->
+    <polyline points="26,70 50,48 74,70" stroke="#4b8057" stroke-width="11"/>
+    <!-- primary ascent: climbing a tier -->
+    <polyline points="26,54 50,32 74,54" stroke="#82d399" stroke-width="11"/>
+  </g>
 </svg>
