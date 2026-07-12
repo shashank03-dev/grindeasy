@@ -245,7 +245,10 @@ async function main(): Promise<void> {
       rank: sync.state.rank,
     });
     saveStats(dir, stats);
-    void sync.maybeSync(stats, plan, now, activeNames.length > 0);
+    // Report presence to the board as tool *ids* (the leaderboard keys tools by
+    // id), mapped back from the display names the session logic tracks.
+    const activeToolIds = tools.filter((t) => activeNames.includes(t.name)).map((t) => t.id);
+    void sync.maybeSync(stats, plan, now, activeNames.length > 0, activeToolIds);
   }
 
   async function loop(): Promise<void> {

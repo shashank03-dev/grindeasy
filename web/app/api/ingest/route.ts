@@ -9,6 +9,7 @@ import {
   getUserById,
   saveBaseline,
   setPlan,
+  setPresence,
   type Db,
 } from "@/lib/db/queries";
 
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
     }
     await addCombos(t, record.userId, result.creditedCombos);
     await setPlan(t, record.userId, payload.plan);
+    // Stamp presence only when a tool is actually working, so the "online" dot
+    // reflects live coding rather than an idle heartbeat.
+    if (payload.active) await setPresence(t, record.userId, payload.activeNow);
     await saveBaseline(t, token, result.newBaseline);
   });
 

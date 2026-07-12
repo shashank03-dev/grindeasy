@@ -22,6 +22,14 @@ export const users = pgTable("users", {
   plan: text().$type<Plan>().notNull().default("unknown"),
   combos: integer().notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * Last time any device reported a tool *actively working*. Its freshness is
+   * the live "online" signal on the personal card; stamped only on active
+   * ingests, so it goes stale (offline) as soon as the user stops coding.
+   */
+  lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+  /** Tool ids reported working on the most recent active ingest. */
+  activeNow: jsonb("active_now").$type<string[]>(),
 });
 
 export const toolTotals = pgTable(

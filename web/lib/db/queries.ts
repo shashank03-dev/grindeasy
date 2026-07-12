@@ -91,6 +91,47 @@ export async function userToolTotals(db: Db, userId: number): Promise<Record<str
   return Object.fromEntries(rows.map((r) => [r.toolId, Number(r.activeMs)]));
 }
 
+/**
+ * Record that a user is actively coding right now. Called only on *active*
+ * ingests, so `lastActiveAt`'s freshness is the online signal — it stops
+ * advancing the moment the user goes idle. See core/presence.ts `isOnline`.
+ */
+export async function setPresence(
+  db: Db,
+  userId: number,
+  activeNow: string[],
+  now = new Date(),
+): Promise<void> {
+  await db.update(users).set({ lastActiveAt: now, activeNow }).where(eq(users.id, userId));
+}
+
+/** Presence inputs for one user, for the live "online" dot on their card. */
+export interface UserPresence {
+  lastActiveAt: Date | null;
+  activeNow: string[] | null;
+  /** Newest heartbeat across the user's devices — the fallback for old agents. */
+  lastSeenAt: Date | null;
+}
+
+export async function getUserPresence(db: Db, userId: number): Promise<UserPresence> {
+  const [u] = await db
+    .select({ lastActiveAt: users.lastActiveAt, activeNow: users.activeNow })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const [seen] = await db
+    .select({ lastSeenAt: sql<string | null>`max(${agentTokens.lastSeenAt})` })
+    .from(agentTokens)
+    .where(eq(agentTokens.userId, userId));
+  // A raw max() skips drizzle's timestamp mapping, so the driver may hand back a
+  // string; normalize to a Date (or null).
+  return {
+    lastActiveAt: u?.lastActiveAt ?? null,
+    activeNow: u?.activeNow ?? null,
+    lastSeenAt: seen?.lastSeenAt ? new Date(seen.lastSeenAt) : null,
+  };
+}
+
 /** One row per user with summed active time, ready for rankBoard(). */
 export async function boardRows(db: Db): Promise<BoardRow[]> {
   const rows = await db

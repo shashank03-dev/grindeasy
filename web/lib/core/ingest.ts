@@ -24,6 +24,15 @@ export interface IngestPayload {
   /** Cumulative combo windows. */
   totalCombos: number;
   agentVersion: string;
+  /**
+   * Whether a tool was working at sync time. Drives the live "online" dot.
+   * Pre-0.3 agents omit it; `parsePayload` defaults it to `false`.
+   */
+  active: boolean;
+  /**
+   * Tool ids working at sync time. Pre-0.3 agents omit it; defaults to `[]`.
+   */
+  activeNow: string[];
 }
 
 /** Last accepted totals for one agent token; the reference point for deltas. */
@@ -60,12 +69,24 @@ export function parsePayload(body: unknown): IngestPayload | null {
     typeof b.totalCombos === "number" && Number.isFinite(b.totalCombos) && b.totalCombos > 0
       ? Math.floor(b.totalCombos)
       : 0;
+  // Presence fields are optional and read defensively: agents predating v0.3
+  // never send them, and they must ingest exactly as before.
+  const active = b.active === true;
+  const activeNow: string[] = [];
+  if (Array.isArray(b.activeNow)) {
+    for (const id of b.activeNow) {
+      if (typeof id === "string" && TOOL_ID_RE.test(id)) activeNow.push(id);
+      if (activeNow.length >= MAX_TOOLS) break;
+    }
+  }
   return {
     version: 1,
     plan: b.plan as Plan,
     toolTotalsMs: totals,
     totalCombos: combos,
     agentVersion: typeof b.agentVersion === "string" ? b.agentVersion.slice(0, 32) : "",
+    active,
+    activeNow,
   };
 }
 

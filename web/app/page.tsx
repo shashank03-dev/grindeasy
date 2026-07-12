@@ -1,7 +1,13 @@
+import { ParticleField } from "@/components/particle-field";
 import { PlanBadge, TierBadge } from "@/components/tier-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserMenu } from "@/components/user-menu";
 import { getBoard } from "@/lib/board";
 import type { BoardEntry } from "@/lib/core/leaderboard";
+import { buildUserCard, type UserCardData } from "@/lib/core/user-card";
+import { getDb } from "@/lib/db";
+import { boardRows, getUserPresence, userToolTotals } from "@/lib/db/queries";
+import { currentUser } from "@/lib/session";
 
 // Rendered at request time so `next build` never needs a database. Freshness is
 // handled in getBoard(), which caches the query for 30s across all viewers.
@@ -18,12 +24,49 @@ function formatRank(rank: number): string {
   return rank < 100 ? String(rank).padStart(2, "0") : String(rank);
 }
 
+// The personal dashboard is derived per request for the signed-in user, ranked
+// against the whole field (not just the top 100 shown on the public board).
+async function getUserCard(): Promise<UserCardData | null> {
+  const user = await currentUser();
+  if (!user) return null;
+  const db = getDb();
+  const [toolTotalsMs, rows, presence] = await Promise.all([
+    userToolTotals(db, user.id),
+    boardRows(db),
+    getUserPresence(db, user.id),
+  ]);
+  return buildUserCard({
+    username: user.username,
+    avatar: user.avatar,
+    discordId: user.discordId,
+    plan: user.plan,
+    combos: user.combos,
+    toolTotalsMs,
+    boardRows: rows,
+    presence,
+  });
+}
+
 export default async function LeaderboardPage() {
-  const entries = await getBoard();
+  const [entries, card] = await Promise.all([getBoard(), getUserCard()]);
 
   return (
-    // Faint phosphor bleed from the top — the only ambient light on the surface.
-    <main className="relative mx-auto w-full max-w-4xl px-6 pb-24 pt-14 [background-image:radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]">
+    <>
+      {/* Whole-page background: black when signed out, tier-colored particles
+          taking birth once the user is authenticated. Sits behind everything. */}
+      <ParticleField
+        signedIn={card !== null}
+        tier={card?.tierName ?? null}
+        online={card?.isOnline ?? false}
+      />
+
+      {/* Account control, pinned above the board and the particle field. */}
+      <div className="fixed right-4 top-4 z-30">
+        <UserMenu data={card} />
+      </div>
+
+      {/* Faint phosphor bleed from the top — the only ambient light on the surface. */}
+      <main className="relative z-10 mx-auto w-full max-w-4xl px-6 pb-24 pt-14 [background-image:radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]">
       <header className="mb-10">
         <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           <span aria-hidden className="text-primary">▲</span> grindeasy
@@ -48,6 +91,7 @@ export default async function LeaderboardPage() {
         <span>Synced every 5 minutes. The agent self-reports; the server clamps.</span>
       </p>
     </main>
+    </>
   );
 }
 

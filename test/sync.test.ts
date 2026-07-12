@@ -21,6 +21,15 @@ describe("buildPayload", () => {
       toolTotalsMs: { "claude-code": 1234 },
       totalCombos: 2,
       agentVersion: AGENT_VERSION,
+      active: false,
+      activeNow: [],
+    });
+  });
+
+  it("carries the live presence flag and active tool ids when working", () => {
+    expect(buildPayload(statsWith(1000, 0), "pro", true, ["claude-code"])).toMatchObject({
+      active: true,
+      activeNow: ["claude-code"],
     });
   });
 });
