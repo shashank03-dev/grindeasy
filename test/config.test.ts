@@ -9,8 +9,10 @@ import {
   OFFICIAL_SERVER_URL,
   configPath,
   loadConfig,
+  migrateCustomTools,
   updateConfig,
 } from "../src/config.js";
+import type { ToolDef } from "../src/types.js";
 
 /** A throwaway $HOME so tests never touch the real ~/.grindeasy. */
 function fakeHome(config?: Record<string, unknown>): string {
@@ -78,6 +80,67 @@ describe("updateConfig", () => {
       accountToken: "tok",
       declaredPlan: "max",
     });
+  });
+});
+
+describe("migrateCustomTools", () => {
+  const legacyTool: ToolDef = {
+    id: "my-editor",
+    name: "My Editor",
+    activityDirs: ["/home/me/.myeditor/sessions"],
+    extensions: [".json"],
+  };
+
+  it("is a no-op when there is no legacy `tools` field to migrate", () => {
+    const { config, changed } = migrateCustomTools({ ...DEFAULT_CONFIG });
+    expect(changed).toBe(false);
+    expect(config.customTools).toEqual([]);
+  });
+
+  it("moves a hand-set `tools` override into customTools and clears the legacy field", () => {
+    const { config, changed } = migrateCustomTools({ ...DEFAULT_CONFIG, tools: [legacyTool] });
+    expect(changed).toBe(true);
+    expect(config.customTools).toEqual([legacyTool]);
+    expect(config.tools).toEqual([]);
+  });
+
+  it("does not clobber existing customTools, only drops the legacy field", () => {
+    const existing: ToolDef = { ...legacyTool, id: "kept", name: "Kept" };
+    const { config, changed } = migrateCustomTools({
+      ...DEFAULT_CONFIG,
+      tools: [legacyTool],
+      customTools: [existing],
+    });
+    expect(changed).toBe(true);
+    expect(config.customTools).toEqual([existing]);
+    expect(config.tools).toEqual([]);
+  });
+
+  it("is idempotent: running it on its own output changes nothing further", () => {
+    const first = migrateCustomTools({ ...DEFAULT_CONFIG, tools: [legacyTool] });
+    const second = migrateCustomTools(first.config);
+    expect(second.changed).toBe(false);
+    expect(second.config).toEqual(first.config);
+  });
+
+  it("runs through loadConfig and persists the emptied `tools` to disk", () => {
+    const home = fakeHome({ tools: [legacyTool] });
+    const { config } = loadConfig(home);
+    expect(config.customTools).toEqual([legacyTool]);
+    expect(config.tools).toEqual([]);
+    // The write-back means a second load has nothing left to migrate.
+    const onDisk = JSON.parse(readFileSync(configPath(home), "utf8"));
+    expect(onDisk.tools).toEqual([]);
+    expect(onDisk.customTools).toEqual([legacyTool]);
+  });
+});
+
+describe("catalog config defaults", () => {
+  it("starts with empty enabled/declined/custom tool lists", () => {
+    const { config } = loadConfig(fakeHome());
+    expect(config.enabledToolIds).toEqual([]);
+    expect(config.declinedToolIds).toEqual([]);
+    expect(config.customTools).toEqual([]);
   });
 });
 

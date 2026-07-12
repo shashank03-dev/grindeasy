@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-import { homedir } from "node:os";
-import { createInterface } from "node:readline/promises";
-import { loadConfig, dataDir, configPath, updateConfig, type Config } from "./config.js";
+import { loadConfig, dataDir, configPath, updateConfig } from "./config.js";
 import { openBrowser, pair } from "./pair.js";
 import { detectPlan, planBadge } from "./plan.js";
 import { PresenceManager, REPO_URL } from "./presence.js";
 import {
   installService,
   isAgentRunning,
-  isInstalled,
-  platformSupported,
   renderRunningStatus,
   serviceStatus,
   uninstallService,
@@ -19,8 +15,13 @@ import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
 import { SyncClient } from "./sync.js";
 import { computeTier } from "./tiers.js";
-import { detectAll, defaultTools } from "./tools.js";
+import { trackedTools } from "./catalog.js";
+import { detectAll } from "./tools.js";
+import { needsOnboarding, runOnboarding } from "./onboarding.js";
+import { runToolsCommand } from "./toolsCli.js";
+import * as theme from "./theme.js";
 import { Tracker } from "./tracker.js";
+import type { Plan, TierResult } from "./types.js";
 
 /**
  * How long a session survives a lull in tool activity. Tool logs are bursty —
@@ -81,85 +82,41 @@ async function login(): Promise<void> {
   console.log(`\n  ✓ Paired. Run \`grindeasy\` and your time starts counting.\n`);
 }
 
-/**
- * Offer the leaderboard once, on the first interactive run. Sync stays opt-in —
- * nothing is sent anywhere unless a human answers yes — but nobody has to know
- * that `grindeasy login` exists to find the board.
- *
- * Returns the account token if pairing completed, else "".
- */
-async function offerLeaderboard(config: Config): Promise<string> {
-  const eligible =
-    config.serverUrl &&
-    !config.accountToken &&
-    !config.askedToJoinBoard &&
-    process.stdin.isTTY;
-  if (!eligible) return "";
-
-  // Asked, whatever the answer — we never nag twice.
-  updateConfig({ askedToJoinBoard: true });
-
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  let answer: string;
-  try {
-    answer = await rl.question("\n  Join the global leaderboard? [Y/n] ");
-  } finally {
-    rl.close();
-  }
-  if (/^n/i.test(answer.trim())) {
-    console.log(`  No problem — staying local. Run \`grindeasy login\` any time.\n`);
-    return "";
-  }
-
-  try {
-    const token = await pairWithBoard(config.serverUrl);
-    console.log(`\n  ✓ Joined. Your rank now shows on your Discord card.\n`);
-    return token;
-  } catch (err) {
-    // A failed pairing must never stop the agent: the card and local tracking
-    // work perfectly well without a board.
-    console.warn(`  Pairing didn't finish (${(err as Error).message}).`);
-    console.warn(`  Run \`grindeasy login\` to try again.\n`);
-    return "";
-  }
-}
-
-/**
- * After pairing, offer to keep grindeasy running in the background. Opt-out
- * (default yes), asked exactly once. Returns true when a service now owns
- * tracking, so the caller should exit rather than start a second tracker.
- */
-async function offerServiceInstall(config: Config): Promise<boolean> {
-  const eligible =
-    process.stdin.isTTY &&
-    !config.askedToInstallService &&
-    platformSupported(process.platform) &&
-    !isInstalled(process.platform, homedir());
-  if (!eligible) return false;
-
-  updateConfig({ askedToInstallService: true });
-
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  let answer: string;
-  try {
-    answer = await rl.question(
-      "\n  Keep grindeasy tracking in the background (survives closing this terminal and reboots)? [Y/n] ",
-    );
-  } finally {
-    rl.close();
-  }
-  if (/^n/i.test(answer.trim())) {
-    console.log("  Staying in the foreground. Install later with `grindeasy service install`.\n");
-    return false;
-  }
-  return installService({ statsPort: config.statsPort });
-}
-
 /** The duplicate guard's output: a live snapshot instead of a second tracker. */
 function printAlreadyRunning(snap: Snapshot): void {
-  console.log("grindeasy is already running in the background.\n");
+  console.log(theme.dim("grindeasy is already running in the background.\n"));
   console.log(renderRunningStatus(snap));
-  console.log("\nManage it:  grindeasy service status\n");
+  console.log(theme.dim("\nManage it:  grindeasy service status\n"));
+}
+
+/**
+ * The persistent status block shown once the tracker starts. A boxed, phosphor
+ * panel replacing the old plain lines; colour degrades to plain text without a
+ * TTY (so the service log stays readable). The banner is left to onboarding so a
+ * daily foreground run isn't front-loaded with art.
+ */
+function printStartup(opts: {
+  tier: TierResult;
+  plan: Plan;
+  statsPort: number;
+  toolNames: string[];
+  syncEnabled: boolean;
+  serverUrl: string;
+}): void {
+  const label = (s: string) => theme.dim(s.padEnd(11));
+  const sync = opts.syncEnabled
+    ? theme.phosphor(`→ ${opts.serverUrl}`)
+    : theme.dim("off — run `grindeasy login` to join the board");
+  const lines = [
+    `${label("tier")}${theme.fg(`${opts.tier.glyph} ${opts.tier.name}`)}  ${theme.dimmer(
+      `· plan ${planBadge(opts.plan)}`,
+    )}`,
+    `${label("dashboard")}${theme.fg(`http://localhost:${opts.statsPort}`)}`,
+    `${label("tools")}${theme.fg(opts.toolNames.join(", "))}`,
+    `${label("sync")}${sync}`,
+    `${label("repo")}${theme.dimmer(REPO_URL)}`,
+  ];
+  console.log("\n" + theme.panel("grindeasy running", lines));
 }
 
 async function main(): Promise<void> {
@@ -182,7 +139,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { config } = loadConfig();
+  if (process.argv[2] === "tools") {
+    await runToolsCommand(process.argv[3]);
+    return;
+  }
+
+  let { config } = loadConfig();
 
   // Never start a second tracker: if an agent (the service, or another run) is
   // already answering on the stats port, show its status and exit. Two trackers
@@ -193,14 +155,22 @@ async function main(): Promise<void> {
     return;
   }
 
-  const accountToken = config.accountToken || (await offerLeaderboard(config));
+  // First interactive run (or when a new tool appears): discovery + leaderboard +
+  // service, in one branded flow. Skipped entirely without a TTY and once nothing
+  // is left to ask, so a daily foreground run goes straight to the status block.
+  let accountToken = config.accountToken;
+  if (needsOnboarding(config)) {
+    const result = await runOnboarding(config);
+    if (result.serviceInstalled) return; // a background service now owns tracking
+    accountToken = result.accountToken;
+    // Reload to pick up tools the user just enabled and flags just persisted.
+    config = loadConfig().config;
+  }
 
-  // Right after a fresh pairing, offer to hand off to a background service.
-  if (accountToken && (await offerServiceInstall(config))) return;
   const dir = dataDir();
   const plan = detectPlan({ declaredPlan: config.declaredPlan });
   const stats = loadStats(dir);
-  const tools = config.tools.length ? config.tools : defaultTools();
+  const tools = trackedTools(config.enabledToolIds, config.customTools);
   const tracker = new Tracker({
     comboBucketMs: config.comboBucketMs,
     maxElapsedMs: config.pollIntervalMs * 3,
@@ -229,17 +199,14 @@ async function main(): Promise<void> {
     buildSnapshot(stats, plan, activeNames, config.donateUrl, Date.now(), sync.state),
   );
 
-  const startTier = computeTier(stats);
-  console.log(`⚡ grindeasy running`);
-  console.log(`   tier      ${startTier.glyph} ${startTier.name}  ·  plan ${planBadge(plan)}`);
-  console.log(`   dashboard http://localhost:${config.statsPort}`);
-  console.log(`   tools     ${tools.map((t) => t.name).join(", ")}`);
-  console.log(
-    `   sync      ${
-      sync.enabled ? `→ ${config.serverUrl}` : "off — run `grindeasy login` to join the board"
-    }`,
-  );
-  console.log(`   repo      ${REPO_URL}`);
+  printStartup({
+    tier: computeTier(stats),
+    plan,
+    statsPort: config.statsPort,
+    toolNames: tools.map((t) => t.name),
+    syncEnabled: sync.enabled,
+    serverUrl: config.serverUrl,
+  });
   if (!config.discordClientId) printSetupHelp();
 
   let lastTick = Date.now();

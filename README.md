@@ -28,8 +28,9 @@
 ---
 
 grindeasy is a tiny local agent. It watches which AI coding tools you're actually
-using — Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Aider — and puts a live
-Discord Rich Presence card on your profile while you work. It tracks a personal
+using — Claude Code, Codex, OpenCode, Cursor, Gemini CLI and Aider out of the box,
+plus Zed, Continue and Windsurf when it spots them on your machine — and puts a
+live Discord Rich Presence card on your profile while you work. It tracks a personal
 tier (Bronze up to Diamond) and a set of achievements, and if you opt in, it
 feeds a global leaderboard that tags each player `API` / `PRO` / `MAX`. The
 server lives in [`server/`](./server): self-hostable, zero dependencies.
@@ -99,6 +100,47 @@ start a second tracker.
 > **Windows note:** the supervisor is a hidden auto-restart loop, and some
 > antivirus or SmartScreen setups treat that as suspicious. If it gets blocked,
 > either allow it or just keep a terminal open with `npx grindeasy`.
+
+## Tracked tools
+
+Six tools are always tracked: Claude Code, Codex, OpenCode, Cursor, Gemini CLI and
+Aider. **Claude Code and Codex are picked up whether you run them in the terminal
+or in their desktop apps** — both session locations are watched under one name.
+
+On top of those, grindeasy probes for more and, only when it finds one on your
+disk, offers once to start tracking it. Say no and it never asks about that tool
+again.
+
+| Detected on demand | Where it lives |
+|---|---|
+| Zed | `~/.local/share/zed/threads` |
+| Continue | `~/.continue/sessions` |
+| Windsurf | `~/.codeium/windsurf` |
+| GitHub Copilot | VS Code `workspaceStorage/*/chatSessions` |
+| Cline | VS Code `globalStorage/saoudrizwan.claude-dev` |
+| Roo Code | VS Code `globalStorage/rooveterinaryinc.roo-cline` |
+| Kilo Code | VS Code `globalStorage/kilocode.kilo-code` |
+
+Copilot counts only when you actually use **Copilot Chat** — grindeasy watches the
+chat session files specifically, so simply having VS Code open and hand-editing
+code never registers as AI activity.
+
+Detection is the same privacy-safe check as everything else: it looks at whether a
+tool's session directory exists and when its files last changed, never at what's
+inside them.
+
+Manage the set with the `tools` subcommand:
+
+```bash
+grindeasy tools list      # what's tracked, what was found, what you declined
+grindeasy tools scan      # re-probe and offer any newly-installed tools
+grindeasy tools add       # add a tool by its session directory (any editor)
+grindeasy tools remove    # stop tracking an added or opted-in tool
+```
+
+`tools add` is the escape hatch for anything not in the catalog: give it a name, a
+directory whose files change while the tool runs, and the extensions to watch.
+Custom tools are always tracked and are kept in `~/.grindeasy/config.json`.
 
 ## The Discord card
 

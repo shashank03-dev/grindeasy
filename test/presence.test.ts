@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildActivity, REPO_URL, type PresenceOptions, type PresenceState } from "../src/presence.js";
+import type { Client } from "@xhayper/discord-rpc";
+import {
+  buildActivity,
+  PresenceManager,
+  presenceKey,
+  REPO_URL,
+  type PresenceOptions,
+  type PresenceState,
+} from "../src/presence.js";
 import type { TierResult } from "../src/types.js";
 
 const PLATINUM: TierResult = { name: "Platinum", glyph: "◆", xp: 120, nextAtXp: 250 };
@@ -66,5 +74,80 @@ describe("buildActivity", () => {
       { label: "⚡ Get grindeasy", url: REPO_URL },
       { label: "☕ Support", url: "https://coffee.example" },
     ]);
+  });
+});
+
+/** Minimal stand-in for @xhayper/discord-rpc's Client, recording the calls we make. */
+class FakeClient {
+  user = {
+    setActivityCalls: [] as unknown[],
+    clearActivityCalls: 0,
+    setActivity(activity: unknown) {
+      this.setActivityCalls.push(activity);
+      return Promise.resolve();
+    },
+    clearActivity() {
+      this.clearActivityCalls += 1;
+      return Promise.resolve();
+    },
+  };
+  private handlers: Record<string, () => void> = {};
+  on(event: string, cb: () => void): this {
+    this.handlers[event] = cb;
+    return this;
+  }
+  login(): Promise<void> {
+    return Promise.resolve();
+  }
+  destroy(): Promise<void> {
+    return Promise.resolve();
+  }
+  emit(event: string): void {
+    this.handlers[event]?.();
+  }
+}
+
+describe("PresenceManager dedupe", () => {
+  function connected(): { pm: PresenceManager; fake: FakeClient } {
+    const fake = new FakeClient();
+    const pm = new PresenceManager(opts, () => fake as unknown as Client);
+    pm.start();
+    fake.emit("ready");
+    return { pm, fake };
+  }
+
+  it("pushes once for an unchanged session, so Discord's timer keeps counting", async () => {
+    const { pm, fake } = connected();
+    const s = state();
+    pm.update(s);
+    pm.update(s);
+    pm.update(s);
+    expect(fake.user.setActivityCalls).toHaveLength(1);
+    await pm.destroy();
+  });
+
+  it("pushes again when the visible card changes", async () => {
+    const { pm, fake } = connected();
+    pm.update(state({ rank: null }));
+    pm.update(state({ rank: 5 }));
+    expect(fake.user.setActivityCalls).toHaveLength(2);
+    await pm.destroy();
+  });
+
+  it("re-pushes after a reconnect even if the state is unchanged", async () => {
+    const { pm, fake } = connected();
+    const s = state();
+    pm.update(s);
+    fake.emit("disconnected");
+    fake.emit("ready"); // ready re-applies the remembered state
+    expect(fake.user.setActivityCalls).toHaveLength(2);
+    await pm.destroy();
+  });
+
+  it("keys idle (cleared) presence apart from any active payload", () => {
+    const active = buildActivity(state(), opts);
+    const idle = buildActivity(state({ activeToolNames: [] }), { ...opts, showIdlePresence: false });
+    expect(idle).toBeNull();
+    expect(presenceKey(idle)).not.toBe(presenceKey(active));
   });
 });
