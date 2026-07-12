@@ -41,8 +41,17 @@ export interface Config {
    * same never-nag-twice rule as askedToJoinBoard.
    */
   askedToInstallService: boolean;
-  /** Optional overrides for tool detection. Empty = use built-in defaults. */
+  /**
+   * Legacy tool overrides. Retained only for one-time migration into
+   * `customTools` (see migrateCustomTools); new installs never set it.
+   */
   tools: ToolDef[];
+  /** Extended-catalog tool ids the user opted into tracking. */
+  enabledToolIds: string[];
+  /** Extended-catalog tool ids the user declined — never re-offered. */
+  declinedToolIds: string[];
+  /** User-added custom tools; always tracked. */
+  customTools: ToolDef[];
 }
 
 /**
@@ -101,6 +110,9 @@ export const DEFAULT_CONFIG: Config = {
   askedToJoinBoard: false,
   askedToInstallService: false,
   tools: [],
+  enabledToolIds: [],
+  declinedToolIds: [],
+  customTools: [],
 };
 
 /** Base directory for all grindeasy runtime data. */
@@ -150,11 +162,30 @@ export function loadConfig(home = homedir()): { config: Config; created: boolean
   try {
     const raw = readFileSync(path, "utf8");
     const parsed = JSON.parse(raw) as Partial<Config>;
-    return { config: normalize({ ...DEFAULT_CONFIG, ...parsed }), created: false };
+    const { config, changed } = migrateCustomTools(normalize({ ...DEFAULT_CONFIG, ...parsed }));
+    // Persist the migration once so the legacy `tools` field is emptied on disk
+    // and never migrated twice.
+    if (changed) writeFileSync(path, JSON.stringify(config, null, 2) + "\n", "utf8");
+    return { config, created: false };
   } catch {
     writeFileSync(path, JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n", "utf8");
     return { config: { ...DEFAULT_CONFIG }, created: true };
   }
+}
+
+/**
+ * One-time migration of the legacy `tools` override into `customTools`. A user
+ * who hand-set `tools` under an older version keeps tracking exactly those tools;
+ * the field is then cleared so this runs at most once. Idempotent: an empty
+ * `tools` (every current install) is left untouched.
+ */
+export function migrateCustomTools(config: Config): { config: Config; changed: boolean } {
+  if (config.tools.length === 0) return { config, changed: false };
+  if (config.customTools.length > 0) {
+    // customTools already populated — don't clobber it, just drop the legacy field.
+    return { config: { ...config, tools: [] }, changed: true };
+  }
+  return { config: { ...config, customTools: config.tools, tools: [] }, changed: true };
 }
 
 /** Keep hand-edited values inside the bounds the server will actually accept. */

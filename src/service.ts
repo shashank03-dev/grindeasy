@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { dataDir } from "./config.js";
 import { REPO_URL } from "./presence.js";
 import type { Snapshot } from "./snapshot.js";
+import { panel } from "./theme.js";
 
 /**
  * Install grindeasy as a per-user background service so tracking survives closing
@@ -313,13 +314,13 @@ export function renderRunningStatus(s: Snapshot): string {
       ? `#${s.sync.rank}${s.sync.totalPlayers ? ` of ${s.sync.totalPlayers}` : ""}`
       : "—";
   const active = s.activeNow.length > 0 ? s.activeNow.join(" + ") : "Idle";
-  return [
-    `  Rank      ${rank}`,
-    `  Today     ${fmtHours(todayHours(s))}`,
-    `  Total     ${fmtHours(s.totalHours)}`,
-    `  Active    ${active}`,
-    `  Sync      ${syncLine(s)}`,
-  ].join("\n");
+  return panel("grindeasy", [
+    `Rank      ${rank}`,
+    `Today     ${fmtHours(todayHours(s))}`,
+    `Total     ${fmtHours(s.totalHours)}`,
+    `Active    ${active}`,
+    `Sync      ${syncLine(s)}`,
+  ]);
 }
 
 function todayHours(s: Snapshot): number {

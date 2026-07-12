@@ -24,6 +24,9 @@ export interface PresenceOptions {
   showIdlePresence: boolean;
 }
 
+/** Builds the underlying Discord client. Injectable so the manager is testable. */
+export type ClientFactory = (clientId: string) => Client;
+
 /**
  * Wraps the Discord IPC client. Connects to the local Discord desktop app and
  * keeps the Rich Presence card in sync. All failures are non-fatal: if Discord
@@ -31,14 +34,27 @@ export interface PresenceOptions {
  */
 export class PresenceManager {
   private readonly opts: PresenceOptions;
+  private readonly createClient: ClientFactory;
   private client: Client | null = null;
   private connected = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private lastState: PresenceState | null = null;
+  /**
+   * The activity we last actually pushed (see `presenceKey`), or null before the
+   * first push. Discord keeps the elapsed timer counting on its own; re-sending an
+   * identical activity restarts that timer at 0:00, so we push only when the card
+   * would visibly change. This is the whole reason the session timer used to reset
+   * every poll while running in the background.
+   */
+  private lastSentKey: string | null = null;
   private stopped = false;
 
-  constructor(opts: PresenceOptions) {
+  constructor(
+    opts: PresenceOptions,
+    createClient: ClientFactory = (clientId) => new Client({ clientId }),
+  ) {
     this.opts = opts;
+    this.createClient = createClient;
   }
 
   /** Begin connecting. No-op (with a clear log) when no client id is configured. */
@@ -55,16 +71,20 @@ export class PresenceManager {
 
   private connect(): void {
     if (this.stopped) return;
-    const client = new Client({ clientId: this.opts.clientId });
+    const client = this.createClient(this.opts.clientId);
     this.client = client;
 
     client.on("ready", () => {
       this.connected = true;
       console.log("[presence] Connected to Discord.");
+      // A fresh connection carries no activity, so the next push must go through
+      // even if the state is identical to what we sent before the drop.
+      this.lastSentKey = null;
       if (this.lastState) this.update(this.lastState);
     });
     client.on("disconnected", () => {
       this.connected = false;
+      this.lastSentKey = null;
       this.scheduleReconnect();
     });
 
@@ -87,6 +107,11 @@ export class PresenceManager {
     this.lastState = state;
     if (!this.connected || !this.client?.user) return;
     const activity = buildActivity(state, this.opts);
+    const key = presenceKey(activity);
+    // Nothing the card shows has changed — leave Discord's elapsed timer running
+    // rather than resetting it with a redundant update.
+    if (key === this.lastSentKey) return;
+    this.lastSentKey = key;
     if (!activity) {
       this.client.user.clearActivity().catch(() => {});
       return;
@@ -103,6 +128,15 @@ export class PresenceManager {
       // ignore teardown errors
     }
   }
+}
+
+/**
+ * A stable identity for a presence payload, used to skip redundant pushes.
+ * Idle (a cleared card, `null`) gets its own sentinel so it dedupes too, and
+ * never collides with a real payload's JSON.
+ */
+export function presenceKey(activity: ReturnType<typeof buildActivity>): string {
+  return activity === null ? " cleared" : JSON.stringify(activity);
 }
 
 /** Build the Discord activity payload, or null to clear the card. */

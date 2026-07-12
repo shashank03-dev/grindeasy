@@ -1,9 +1,22 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+export interface ScanOptions {
+  /** How deep to walk below each root. Guards against a pathological tree. */
+  maxDepth?: number;
+  /**
+   * When set, a file only counts if its full path contains one of these
+   * fragments (case-insensitive). Lets one tool be detected inside a tree shared
+   * by many — e.g. only `…/chatSessions/*.json` under VS Code's workspaceStorage,
+   * so plain editing never registers as AI activity.
+   */
+  pathIncludes?: string[];
+}
+
 /**
  * Return the newest modification time (ms since epoch) among files under any of
- * `roots` whose name ends in one of `extensions`. Returns null when nothing
+ * `roots` whose name ends in one of `extensions` (and, if `pathIncludes` is set,
+ * whose path also contains one of those fragments). Returns null when nothing
  * matches (dir missing, empty, or no matching files).
  *
  * Only file metadata (mtime) is read — never file contents. Scanning is depth
@@ -12,8 +25,10 @@ import { join } from "node:path";
 export async function newestMtimeMs(
   roots: string[],
   extensions: string[],
-  maxDepth = 6,
+  opts: ScanOptions = {},
 ): Promise<number | null> {
+  const maxDepth = opts.maxDepth ?? 6;
+  const includes = (opts.pathIncludes ?? []).map((p) => p.toLowerCase());
   let newest: number | null = null;
   const exts = extensions.map((e) => e.toLowerCase());
 
@@ -33,6 +48,10 @@ export async function newestMtimeMs(
       } else if (entry.isFile()) {
         const lower = entry.name.toLowerCase();
         if (!exts.some((ext) => lower.endsWith(ext))) continue;
+        if (includes.length > 0) {
+          const fullLower = full.toLowerCase();
+          if (!includes.some((frag) => fullLower.includes(frag))) continue;
+        }
         try {
           const s = await stat(full);
           const m = s.mtimeMs;

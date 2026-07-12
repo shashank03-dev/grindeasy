@@ -12,6 +12,14 @@ export interface ToolDef {
   activityDirs: string[];
   /** File extensions that count as activity signals (e.g. [".jsonl"]). */
   extensions: string[];
+  /**
+   * Optional path filter. When set, only files whose full path contains one of
+   * these fragments (case-insensitive) count as activity — used to isolate one
+   * tool inside a directory tree shared by many, e.g. GitHub Copilot's chat under
+   * VS Code's `workspaceStorage/<id>/chatSessions/`. Omitted for the common case,
+   * where extension matching alone is enough.
+   */
+  pathIncludes?: string[];
 }
 
 /** The subscription/billing plan we surface as a badge. */

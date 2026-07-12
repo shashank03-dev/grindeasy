@@ -37,3 +37,42 @@ describe("newestMtimeMs", () => {
     expect(m).toBeNull();
   });
 });
+
+/**
+ * The Copilot case: one shared tree (VS Code's workspaceStorage) holding both AI
+ * chat files and ordinary editor state. Only the chat files may count.
+ */
+describe("newestMtimeMs with pathIncludes", () => {
+  let ws: string;
+
+  beforeAll(() => {
+    ws = mkdtempSync(join(tmpdir(), "grindeasy-ws-"));
+    const write = (rel: string, mtimeSec: number) => {
+      const p = join(ws, rel);
+      mkdirSync(join(p, ".."), { recursive: true });
+      writeFileSync(p, "x");
+      utimesSync(p, mtimeSec, mtimeSec);
+    };
+    // AI chat activity (older) vs plain editor state (newer).
+    write("hash1/chatSessions/abc.json", 3000);
+    write("hash1/state.json", 8000); // not chat — must be ignored
+  });
+
+  afterAll(() => rmSync(ws, { recursive: true, force: true }));
+
+  it("counts only files under a matching path fragment", async () => {
+    const m = await newestMtimeMs([ws], [".json"], { pathIncludes: ["chatsessions"] });
+    // The newer state.json is excluded, so the chat file's mtime wins.
+    expect(m).toBe(3000 * 1000);
+  });
+
+  it("without the filter, the unrelated editor file would win — proving the filter bites", async () => {
+    const m = await newestMtimeMs([ws], [".json"]);
+    expect(m).toBe(8000 * 1000);
+  });
+
+  it("returns null when nothing sits under the fragment", async () => {
+    const m = await newestMtimeMs([ws], [".json"], { pathIncludes: ["no-such-dir"] });
+    expect(m).toBeNull();
+  });
+});
