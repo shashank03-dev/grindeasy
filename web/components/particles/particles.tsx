@@ -2,7 +2,7 @@
 
 import { gsap } from "gsap";
 import { CustomEase } from "gsap/CustomEase";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Geometry, Mesh, Program, Renderer } from "ogl";
 import { hasWebGL } from "@/lib/webgl";
 
@@ -175,6 +175,21 @@ export default function Particles({
   // — or, worse, never restart at all. Mirrored every frame; read by the next
   // build to pick up exactly where the old scene left off.
   const revealValueRef = useRef(0);
+
+  // A WebGL context is a loan, not a possession. The browser takes it back when
+  // the GPU resets, the driver is swapped, the machine wakes from sleep, or too
+  // many other tabs want one — and the canvas it was drawing into goes dead and
+  // STAYS dead. The spec's answer is to rebuild, so bumping this discards the
+  // dead scene and builds a fresh one. Without it, a visitor whose GPU so much
+  // as hiccups loses the field for the rest of their session.
+  const [generation, setGeneration] = useState(0);
+  // A rebuild can itself fail if the GPU has not finished coming back. Retry a
+  // few times, then stop: a machine that cannot give us a context after four
+  // tries at widening intervals is not going to, and an unbounded retry would
+  // spin forever on the dead scene.
+  const rebuildsRef = useRef(0);
+  const REBUILD_LIMIT = 4;
+
   // Drive the uniforms to whatever the current props ask for. Called both when
   // the props change AND after every rebuild, so a scene swap mid-birth resumes
   // the animation instead of stranding the field at whatever value it held.
@@ -236,30 +251,51 @@ export default function Particles({
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    // A build can fail because the GPU is still coming back from the reset that
+    // triggered this very rebuild, so try again on a widening delay before
+    // conceding. On the FIRST build there is nothing to come back from — the
+    // browser simply has no WebGL — so failure there is final and silent.
+    const retryLater = () => {
+      uniformsRef.current = null;
+      if (generation === 0 || rebuildsRef.current >= REBUILD_LIMIT) return;
+      const attempt = ++rebuildsRef.current;
+      const timer = window.setTimeout(() => setGeneration((g) => g + 1), 300 * attempt);
+      return () => window.clearTimeout(timer);
+    };
+
     // Ask first, because OGL does not ask: it logs its own
     // `console.error('unable to create webgl context')` and then throws on the
     // null context. Without this, a browser with no WebGL at all (software
     // rendering off, GPU blocklisted, VM) prints a console error on every mount.
-    if (!hasWebGL()) {
-      // No live scene, so no uniforms to tween. Clearing the handle keeps a
-      // failed rebuild from leaving the reveal effect driving the dead scene's
-      // objects, which would flip bornRef against a field nobody can see.
-      uniformsRef.current = null;
-      return;
-    }
+    // Clearing the uniforms handle also keeps the reveal effect from tweening a
+    // dead scene's objects, which would flip bornRef against a field nobody can
+    // see.
+    if (!hasWebGL()) return retryLater();
 
-    // Still guarded: the probe can pass and the real context still fail if the
-    // browser is at its context limit at this exact moment.
     let renderer: Renderer;
     try {
       renderer = new Renderer({ depth: false, alpha: true });
     } catch {
-      uniformsRef.current = null;
-      return;
+      return retryLater();
     }
+    // Context in hand: the count is only there to bound recovery from one
+    // failure, not to ration attempts across an entire session.
+    rebuildsRef.current = 0;
+
     const gl = renderer.gl;
     container.appendChild(gl.canvas);
     gl.clearColor(0, 0, 0, 0);
+
+    // The browser only offers the context back if the page says it still wants
+    // it — an unprevented `webglcontextlost` is final. Take the offer, then
+    // rebuild from scratch: restoration returns a blank context, and every
+    // program, buffer, and texture OGL uploaded into the old one is gone.
+    let lostTimer = 0;
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      lostTimer = window.setTimeout(() => setGeneration((g) => g + 1), 200);
+    };
+    gl.canvas.addEventListener("webglcontextlost", handleContextLost);
 
     const camera = new Camera(gl, { fov: 15 });
     camera.position.set(0, 0, 20);
@@ -364,11 +400,18 @@ export default function Particles({
     return () => {
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", handleMouseMove);
+      window.clearTimeout(lostTimer);
       cancelAnimationFrame(raf);
       gsap.killTweensOf(uReveal);
       gsap.killTweensOf(uEnergy);
       gsap.killTweensOf(uHue);
       if (container.contains(gl.canvas)) container.removeChild(gl.canvas);
+
+      // Detach BEFORE the deliberate loss below, or teardown trips our own
+      // recovery: loseContext() fires `webglcontextlost` exactly like a real
+      // one, and the handler would queue a rebuild of the scene we are throwing
+      // away — every unmount spawning a replacement, forever.
+      gl.canvas.removeEventListener("webglcontextlost", handleContextLost);
 
       // Dropping the canvas does NOT free the GL context, and OGL never does it
       // either ("TODO: Handle context loss" — Renderer.js). A browser allows only
@@ -380,7 +423,7 @@ export default function Particles({
       uniformsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colors, count, spread, baseSize]);
+  }, [colors, count, spread, baseSize, generation]);
 
   // Birth reveal + energize. Discrete prop changes (sign-in, online toggle), so
   // GSAP tweens the live uniforms; reduced motion snaps instead. The build
