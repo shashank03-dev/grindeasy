@@ -13,6 +13,7 @@ import type { UserCardData } from "@/lib/core/user-card";
  */
 export function UserMenu({ data }: { data: UserCardData | null }) {
   const [open, setOpen] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -59,13 +60,32 @@ export function UserMenu({ data }: { data: UserCardData | null }) {
     };
   }, [open]);
 
+  // Coming back from Discord via the back button restores this page from the
+  // bfcache with its DOM intact — including the pending state, whose CSS sets
+  // `pointer-events: none`. Without this reset the visitor lands on a dead
+  // "Signing in…" spinner and cannot retry without a hard reload.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setSigningIn(false);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   if (!data) {
+    // A single filled primary action: the one thing a signed-out visitor is
+    // meant to do. Clicking redirects straight to Discord, so the label names
+    // the destination and the click flips to a pending state for the round trip.
     return (
       <a
         href="/auth/login?next=/"
-        className="rounded-lg border border-input bg-card/70 px-3.5 py-2 text-[13px] font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary/70"
+        className="signin-btn"
+        aria-busy={signingIn || undefined}
+        data-pending={signingIn || undefined}
+        onClick={() => setSigningIn(true)}
       >
-        Sign in
+        <span aria-hidden className="signin-btn__spinner" />
+        {signingIn ? "Signing in…" : "Sign in with Discord"}
       </a>
     );
   }
