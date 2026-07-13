@@ -141,3 +141,121 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  /* Frosted glass for the personal dashboard. Tinted toward the card surface so
+     it still reads on the black particle field, with the tier accent bled into
+     one corner. */
+  .glass-panel {
+    background:
+      radial-gradient(
+        130% 90% at calc(var(--spot-x, 80) * 1%) calc(var(--spot-y, 0) * 1%),
+        color-mix(in oklch, var(--tier, var(--primary)) 16%, transparent),
+        transparent 60%
+      ),
+      color-mix(in oklch, var(--card) 64%, transparent);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  /* Accessibility fallback: users who ask for less transparency get an opaque
+     card, no blur. */
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-panel {
+      background: var(--card);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* Sign in: the single primary action for a signed-out visitor, so it carries
+     the one interface accent as a solid pill. Shaped to match the signed-in
+     avatar pill it replaces (same height, same full radius) so the control
+     swaps in place without the layout shifting. */
+  .signin-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.25rem;
+    padding: 0 1rem;
+    border-radius: 9999px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--primary-foreground);
+    background: var(--primary);
+    /* A hairline top highlight reads as a lit surface, not a flat fill. */
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.25),
+      0 8px 22px -14px oklch(0 0 0 / 0.9);
+    transition:
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out,
+      transform 120ms ease-out;
+  }
+
+  .signin-btn:hover {
+    background: color-mix(in oklch, var(--primary) 92%, white);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.3),
+      0 0 24px -8px color-mix(in oklch, var(--primary) 70%, transparent),
+      0 8px 22px -14px oklch(0 0 0 / 0.9);
+  }
+
+  .signin-btn:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 0 1px 2px oklch(0 0 0 / 0.25),
+      0 4px 12px -10px oklch(0 0 0 / 0.9);
+  }
+
+  .signin-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* Pending: the click has fired and the browser is on its way to Discord. Dim
+     the fill, freeze interaction, and show a spinner so the wait reads as
+     progress rather than a dead button. */
+  .signin-btn[data-pending] {
+    pointer-events: none;
+    background: color-mix(in oklch, var(--primary) 55%, var(--card));
+  }
+
+  .signin-btn__spinner {
+    display: none;
+    width: 0.85em;
+    height: 0.85em;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in oklch, var(--primary-foreground) 35%, transparent);
+    border-top-color: var(--primary-foreground);
+    animation: signin-spin 0.6s linear infinite;
+  }
+
+  .signin-btn[data-pending] .signin-btn__spinner {
+    display: inline-block;
+  }
+
+  @keyframes signin-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Reduced motion drops the hover lift, the press travel, and the spin. The
+     pending state still reads: dimmed fill plus a static ring beside the label. */
+  @media (prefers-reduced-motion: reduce) {
+    .signin-btn {
+      transition: background-color 180ms ease-out;
+    }
+    .signin-btn:active {
+      transform: none;
+    }
+    .signin-btn__spinner {
+      animation: none;
+    }
+  }
+}

@@ -17,6 +17,8 @@ function payload(overrides: Partial<IngestPayload> = {}): IngestPayload {
     toolTotalsMs: {},
     totalCombos: 0,
     agentVersion: "test",
+    active: false,
+    activeNow: [],
     ...overrides,
   };
 }
@@ -109,15 +111,46 @@ describe("parsePayload", () => {
       plan: "max",
       toolTotalsMs: { "claude-code": 1234.7 },
       totalCombos: 3,
-      agentVersion: "0.2.0",
+      agentVersion: "0.3.0",
+      active: true,
+      activeNow: ["claude-code"],
     });
     expect(p).toEqual({
       version: 1,
       plan: "max",
       toolTotalsMs: { "claude-code": 1234 },
       totalCombos: 3,
+      agentVersion: "0.3.0",
+      active: true,
+      activeNow: ["claude-code"],
+    });
+  });
+
+  it("defaults presence to offline for pre-0.3 agents that omit the fields", () => {
+    const p = parsePayload({
+      version: 1,
+      plan: "pro",
+      toolTotalsMs: { codex: 100 },
+      totalCombos: 0,
       agentVersion: "0.2.0",
     });
+    expect(p?.active).toBe(false);
+    expect(p?.activeNow).toEqual([]);
+  });
+
+  it("drops malformed active tool ids and non-array activeNow", () => {
+    const p = parsePayload({
+      version: 1,
+      plan: "pro",
+      toolTotalsMs: {},
+      totalCombos: 0,
+      agentVersion: "x",
+      active: "yes",
+      activeNow: ["claude-code", "BAD ID!", 42],
+    });
+    // A non-boolean `active` is not `true`, so it reads as offline.
+    expect(p?.active).toBe(false);
+    expect(p?.activeNow).toEqual(["claude-code"]);
   });
 
   it("rejects wrong versions and junk", () => {

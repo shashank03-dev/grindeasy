@@ -1,6 +1,6 @@
 import type { Plan, Stats } from "./types.js";
 
-export const AGENT_VERSION = "0.2.0";
+export const AGENT_VERSION = "0.3.0";
 
 /**
  * What we send to the leaderboard server: cumulative aggregates only. The
@@ -13,6 +13,16 @@ export interface SyncPayload {
   toolTotalsMs: Record<string, number>;
   totalCombos: number;
   agentVersion: string;
+  /**
+   * Whether a tool is working right now. Drives the leaderboard's live "online"
+   * dot. Privacy-safe: a single boolean, no code or content.
+   */
+  active: boolean;
+  /**
+   * Tool ids working right now — a subset of `toolTotalsMs`'s keys, which are
+   * already non-secret. Never file paths, prompts, or anything identifying.
+   */
+  activeNow: string[];
 }
 
 export type SyncStatus = "disabled" | "pending" | "ok" | "error";
@@ -47,7 +57,12 @@ export interface SyncOptions {
   fetchFn?: typeof fetch;
 }
 
-export function buildPayload(stats: Stats, plan: Plan): SyncPayload {
+export function buildPayload(
+  stats: Stats,
+  plan: Plan,
+  active = false,
+  activeNow: string[] = [],
+): SyncPayload {
   const toolTotalsMs: Record<string, number> = {};
   for (const [id, ms] of Object.entries(stats.activeMsByTool)) {
     toolTotalsMs[id] = Math.floor(ms);
@@ -58,6 +73,8 @@ export function buildPayload(stats: Stats, plan: Plan): SyncPayload {
     toolTotalsMs,
     totalCombos: stats.combos,
     agentVersion: AGENT_VERSION,
+    active,
+    activeNow,
   };
 }
 
@@ -97,7 +114,13 @@ export class SyncClient {
    * active that interval is short, so the board (and the rank on the card)
    * moves while you work; idle, it backs off.
    */
-  async maybeSync(stats: Stats, plan: Plan, now = Date.now(), active = false): Promise<void> {
+  async maybeSync(
+    stats: Stats,
+    plan: Plan,
+    now = Date.now(),
+    active = false,
+    activeNow: string[] = [],
+  ): Promise<void> {
     if (!this.enabled || this.inFlight) return;
     if (now < this.retryNotBeforeMs) return;
     const interval = active ? this.opts.activeSyncIntervalMs : this.opts.syncIntervalMs;
@@ -113,7 +136,7 @@ export class SyncClient {
           authorization: `Bearer ${this.opts.accountToken}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify(buildPayload(stats, plan)),
+        body: JSON.stringify(buildPayload(stats, plan, active, activeNow)),
       });
       if (res.ok) {
         const body = (await res.json().catch(() => ({}))) as IngestResponse;
