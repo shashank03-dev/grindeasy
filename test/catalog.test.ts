@@ -31,6 +31,27 @@ describe("isPresent", () => {
     mkdirSync(zed.activityDirs[0]!, { recursive: true });
     expect(isPresent(zed)).toBe(true);
   });
+
+  it("does not count Copilot present just because VS Code (workspaceStorage) exists", () => {
+    const home = tmpHome();
+    // A VS Code user with no Copilot: workspaceStorage and a workspace exist, but
+    // no chat directory. Copilot must not be offered.
+    mkdirSync(join(home, ".config", "Code", "User", "workspaceStorage", "hash1"), {
+      recursive: true,
+    });
+    const copilot = extendedById("copilot", home)!;
+    expect(isPresent(copilot)).toBe(false);
+  });
+
+  it("counts Copilot present once a chat directory actually exists", () => {
+    const home = tmpHome();
+    mkdirSync(
+      join(home, ".config", "Code", "User", "workspaceStorage", "hash1", "chatSessions"),
+      { recursive: true },
+    );
+    const copilot = extendedById("copilot", home)!;
+    expect(isPresent(copilot)).toBe(true);
+  });
 });
 
 describe("discoverExtended", () => {

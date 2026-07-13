@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ToolDef } from "./types.js";
@@ -161,9 +161,10 @@ export function extendedTools(home = homedir()): ToolDef[] {
       // alone would fire on any VS Code activity, so pathIncludes restricts the scan
       // to those chat files — hand-editing with no AI never registers.
       //
-      // Presence here means "VS Code is installed" rather than "Copilot is": the
-      // workspaceStorage root exists either way. Harmless — an offer the user can
-      // decline, and with no Copilot chat files the tool simply never goes active.
+      // pathIncludes also sharpens presence (see isPresent): because the
+      // workspaceStorage root exists for anyone with VS Code, Copilot is offered
+      // only once one of those chat directories actually exists, so a VS Code user
+      // who has never touched Copilot is not shown a tool they don't have.
       id: "copilot",
       name: "GitHub Copilot",
       activityDirs: vscodeUserDataDirs(home).map((base) => join(base, "workspaceStorage")),
@@ -191,8 +192,50 @@ export function extendedTools(home = homedir()): ToolDef[] {
   ];
 }
 
-/** True when any of the tool's activity directories exists. Presence only — never reads files. */
+/**
+ * Depth we descend under an activity root looking for a directory named by
+ * `pathIncludes`. Copilot's chat dirs sit at workspaceStorage/<hash>/chatSessions,
+ * two levels down; a little slack costs nothing since this runs once at onboarding.
+ */
+const PRESENCE_MAX_DEPTH = 2;
+
+/**
+ * Whether some directory whose name matches one of `fragments` (case-insensitive)
+ * exists at most `PRESENCE_MAX_DEPTH` levels below `root`. Directory names only —
+ * never file contents. Returns on the first match.
+ */
+function hasNamedSubdir(root: string, fragments: string[], depth = 0): boolean {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return false; // missing/unreadable — not present
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (fragments.some((frag) => entry.name.toLowerCase().includes(frag))) return true;
+    if (depth + 1 <= PRESENCE_MAX_DEPTH && hasNamedSubdir(join(root, entry.name), fragments, depth + 1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether the tool's own data is present on this machine.
+ *
+ * For tools that own their activity directory outright, that directory merely
+ * existing is proof. When `pathIncludes` is set the directory is shared with the
+ * host editor (Copilot lives inside VS Code's workspaceStorage, which exists for
+ * anyone with VS Code), so mere existence would false-positive — presence then
+ * additionally requires a subdirectory named by one of the fragments, i.e. real
+ * chat data. Presence only — never reads file contents.
+ */
 export function isPresent(tool: ToolDef): boolean {
+  const fragments = tool.pathIncludes?.map((f) => f.toLowerCase());
+  if (fragments && fragments.length > 0) {
+    return tool.activityDirs.some((dir) => hasNamedSubdir(dir, fragments));
+  }
   return tool.activityDirs.some((dir) => {
     try {
       return existsSync(dir);
