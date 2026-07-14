@@ -71,10 +71,10 @@ export default async function LeaderboardPage() {
         <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           <span aria-hidden className="text-primary">▲</span> grindeasy
         </p>
-        {/* Fraunces at display optical size, with one italic word carrying the
-            product's whole promise — active time, not billed time. */}
-        <h1 className="mt-5 max-w-[15ch] font-heading text-[2rem] font-normal leading-[1.05] tracking-[-0.015em] text-foreground [font-optical-sizing:auto] [font-variation-settings:'opsz'_144] sm:text-5xl">
-          Time <em className="font-normal italic">actually</em> spent coding with AI.
+        {/* Condensed display, set large and tight — the same voice as the landing
+            hero, so arriving here reads as the same surface. */}
+        <h1 className="mt-5 max-w-[16ch] font-display text-5xl uppercase leading-[0.92] tracking-[-0.01em] text-foreground sm:text-7xl">
+          Time actually spent coding with AI
         </h1>
         <p className="mt-5 max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
           Active time only, measured while a tool is working. Combos reward using two tools in the
@@ -138,13 +138,13 @@ function Board({ entries }: { entries: BoardEntry[] }) {
                       : "border-b border-border transition-colors last:border-0 hover:bg-secondary/50"
                   }
                 >
-                  {/* Serif rank numerals — Fraunces threads the editorial blend
-                      into the data, like a magazine ranked list. */}
+                  {/* Mono rank numerals — a fixed-width ordered column, read as
+                      data rather than decoration. */}
                   <td
                     className={
                       isTop
-                        ? "px-4 py-3.5 font-heading text-[19px] tabular-nums text-primary [font-variation-settings:'opsz'_40] shadow-[inset_2px_0_0_var(--primary)]"
-                        : "px-4 py-3.5 font-heading text-[19px] tabular-nums text-muted-foreground [font-variation-settings:'opsz'_40]"
+                        ? "px-4 py-3.5 font-mono text-[17px] tabular-nums text-primary shadow-[inset_2px_0_0_var(--primary)]"
+                        : "px-4 py-3.5 font-mono text-[17px] tabular-nums text-muted-foreground"
                     }
                   >
                     {formatRank(entry.rank)}
