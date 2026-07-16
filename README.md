@@ -93,8 +93,10 @@ grindeasy service uninstall   # stop; your token and stats are kept
 ```
 
 Right after you join the leaderboard, grindeasy offers to do this for you — press
-enter and you're done. The service runs whenever you're logged in, and restarts
-itself if it ever crashes.
+enter and you're done. If you started with `npx`, saying yes installs grindeasy
+globally at that point (no sudo), since a background service needs a permanent
+command to run — no separate `npm i -g` step on your part. The service runs
+whenever you're logged in, and restarts itself if it ever crashes.
 
 | Platform | Mechanism | Restarts on crash | Survives reboot |
 |---|---|---|---|

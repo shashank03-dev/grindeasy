@@ -1,12 +1,17 @@
 import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { dataDir } from "./config.js";
 import { REPO_URL } from "./presence.js";
 import type { Snapshot } from "./snapshot.js";
 import { panel } from "./theme.js";
+
+// Ships in the npm tarball next to dist/, so `../package.json` resolves both from
+// dist/service.js at runtime and from src/service.ts under tsx in dev.
+const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
 
 /**
  * Install grindeasy as a per-user background service so tracking survives closing
@@ -238,6 +243,8 @@ export interface ServiceEnv {
   spawnSupervisor: (home: string) => void;
   sleep: (ms: number) => Promise<void>;
   log: (msg: string) => void;
+  /** Version to pin when auto-installing grindeasy globally. Defaults to this build. */
+  installVersion: string;
 }
 
 function uid(): number {
@@ -265,6 +272,7 @@ function resolveEnv(env: Partial<ServiceEnv> | undefined): ServiceEnv {
     spawnSupervisor: env?.spawnSupervisor ?? realSpawnSupervisor,
     sleep: env?.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     log: env?.log ?? ((m) => console.log(m)),
+    installVersion: env?.installVersion ?? pkg.version,
   };
 }
 
@@ -349,6 +357,48 @@ async function runAll(env: ServiceEnv, commands: string[][]): Promise<void> {
 }
 
 /**
+ * The Linux unit and macOS plist both launch `bash -lc 'exec grindeasy'`, so the
+ * service only starts if a *login shell* finds `grindeasy` after this process
+ * exits. An npx run never satisfies that — its bin dir is on PATH for the npx
+ * child only, not a fresh login shell — so the real precondition is "does a login
+ * shell resolve grindeasy to something that isn't the throwaway npx copy?".
+ */
+async function loginShellHasGrindeasy(env: ServiceEnv): Promise<boolean> {
+  const r = await env.run(LOGIN_SHELL, ["-lc", "command -v grindeasy"]);
+  if (r.code !== 0) return false;
+  const resolved = r.stdout.trim();
+  // A path inside npm's npx cache is ephemeral (npm prunes it), so it doesn't count.
+  return resolved.length > 0 && !resolved.includes("_npx");
+}
+
+/**
+ * Guarantee a durable `grindeasy` on PATH before we write a unit that depends on
+ * it. If one already resolves, we're done. Otherwise install it globally — no
+ * sudo, npm's per-user prefix — pinned to the running version so the background
+ * agent behaves exactly like the run the user just tried. Returns false only when
+ * a durable binary still isn't available, so the caller stays in the foreground
+ * rather than enabling a service that would crash-loop.
+ */
+async function ensureDurableBinary(env: ServiceEnv): Promise<boolean> {
+  if (await loginShellHasGrindeasy(env)) return true;
+
+  env.log("Background tracking needs grindeasy installed for good — npx only lasts one run.");
+  env.log(`Installing it now:  npm i -g grindeasy@${env.installVersion}`);
+  const r = await env.run("npm", ["i", "-g", `grindeasy@${env.installVersion}`]);
+  if (r.code !== 0) {
+    const detail = (r.stderr || r.stdout).trim();
+    env.log(`  npm install failed (exit ${r.code})${detail ? `: ${detail}` : ""}`);
+    return false;
+  }
+  if (!(await loginShellHasGrindeasy(env))) {
+    env.log("  Installed, but grindeasy still isn't on PATH in a fresh shell.");
+    return false;
+  }
+  env.log("✓ grindeasy installed globally.");
+  return true;
+}
+
+/**
  * Returns true when the background service is now in charge of tracking — the
  * caller (onboarding) should then exit its foreground process so the two never
  * run at once. Returns false when it fell back to foreground (unsupported,
@@ -365,6 +415,16 @@ export async function installService(envIn?: Partial<ServiceEnv>): Promise<boole
   if (isInstalled(platform, home)) {
     env.log("grindeasy service is already installed. Use `grindeasy service status`.");
     return true;
+  }
+
+  // The Linux unit and macOS plist run `grindeasy` through a login shell, so a
+  // durable binary must exist first. (Windows runs its own supervisor instead.)
+  if (platform === "linux" || platform === "darwin") {
+    if (!(await ensureDurableBinary(env))) {
+      env.log("Skipping the background service — keep this terminal open to keep tracking,");
+      env.log("or run `npm i -g grindeasy` then `grindeasy service install`.");
+      return false;
+    }
   }
 
   // Write artifacts first; the enable step consumes them.

@@ -191,7 +191,14 @@ describe("renderRunningStatus()", () => {
 
 describe("installService()", () => {
   let home: string;
-  const okRunner = vi.fn(async (): Promise<RunResult> => ({ code: 0, stdout: "", stderr: "" }));
+  // Model the normal case: a login shell already resolves grindeasy, so install
+  // never needs to shell out to `npm i -g`.
+  const okRunner = vi.fn(async (_cmd: string, args: string[]): Promise<RunResult> => {
+    if (args.includes("command -v grindeasy")) {
+      return { code: 0, stdout: "/usr/local/bin/grindeasy\n", stderr: "" };
+    }
+    return { code: 0, stdout: "", stderr: "" };
+  });
 
   function env(over: Partial<ServiceEnv> = {}): Partial<ServiceEnv> {
     return {
@@ -228,11 +235,12 @@ describe("installService()", () => {
   });
 
   it("cleans up the artifact when enable fails, leaving nothing half-installed", async () => {
-    const failRunner = vi.fn(async (): Promise<RunResult> => ({
-      code: 1,
-      stdout: "",
-      stderr: "no systemd",
-    }));
+    // Binary present (so we reach enable), but the enable step itself fails.
+    const failRunner = vi.fn(async (_cmd: string, args: string[]): Promise<RunResult> =>
+      args.includes("command -v grindeasy")
+        ? { code: 0, stdout: "/usr/local/bin/grindeasy\n", stderr: "" }
+        : { code: 1, stdout: "", stderr: "no systemd" },
+    );
     await installService(env({ run: failRunner }));
     expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(false);
   });
@@ -245,13 +253,72 @@ describe("installService()", () => {
   });
 
   it("tolerates loginctl failing (linger is best-effort)", async () => {
-    const runner = vi.fn(async (cmd: string): Promise<RunResult> =>
-      cmd === "loginctl"
+    const runner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("command -v grindeasy")) {
+        return { code: 0, stdout: "/usr/local/bin/grindeasy\n", stderr: "" };
+      }
+      return cmd === "loginctl"
         ? { code: 1, stdout: "", stderr: "no session" }
-        : { code: 0, stdout: "", stderr: "" },
-    );
+        : { code: 0, stdout: "", stderr: "" };
+    });
     await installService(env({ run: runner }));
     expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(true);
+  });
+
+  it("skips the global install when grindeasy already resolves on PATH", async () => {
+    await installService(env());
+    const npmCalls = okRunner.mock.calls.filter(([cmd]) => cmd === "npm");
+    expect(npmCalls).toHaveLength(0);
+  });
+
+  it("installs grindeasy globally when a login shell can't find it, then writes the unit", async () => {
+    let installed = false;
+    const runner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("command -v grindeasy")) {
+        return installed
+          ? { code: 0, stdout: "/home/u/.local/bin/grindeasy\n", stderr: "" }
+          : { code: 1, stdout: "", stderr: "" };
+      }
+      if (cmd === "npm") {
+        installed = true;
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const ok = await installService(env({ run: runner }));
+    expect(runner).toHaveBeenCalledWith("npm", expect.arrayContaining(["i", "-g"]));
+    expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(true);
+    expect(ok).toBe(true);
+  });
+
+  it("writes no unit and stays foreground when the global install fails", async () => {
+    const runner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("command -v grindeasy")) return { code: 1, stdout: "", stderr: "" };
+      if (cmd === "npm") return { code: 1, stdout: "", stderr: "network down" };
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const ok = await installService(env({ run: runner }));
+    expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(false);
+    expect(ok).toBe(false);
+  });
+
+  it("treats an npx-cache path as not durable and installs a real one", async () => {
+    let installed = false;
+    const runner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("command -v grindeasy")) {
+        if (installed) return { code: 0, stdout: "/home/u/.local/bin/grindeasy\n", stderr: "" };
+        // Resolves, but only to the throwaway npx copy — must not count as durable.
+        return { code: 0, stdout: "/home/u/.npm/_npx/abc123/node_modules/.bin/grindeasy\n", stderr: "" };
+      }
+      if (cmd === "npm") {
+        installed = true;
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const ok = await installService(env({ run: runner }));
+    expect(runner).toHaveBeenCalledWith("npm", expect.arrayContaining(["i", "-g"]));
+    expect(ok).toBe(true);
   });
 });
 
@@ -263,7 +330,11 @@ describe("uninstallService()", () => {
   afterEach(() => rmSync(home, { recursive: true, force: true }));
 
   it("removes the artifact and runs disable", async () => {
-    const run = vi.fn(async (): Promise<RunResult> => ({ code: 0, stdout: "", stderr: "" }));
+    const run = vi.fn(async (_cmd: string, args: string[]): Promise<RunResult> =>
+      args.includes("command -v grindeasy")
+        ? { code: 0, stdout: "/usr/local/bin/grindeasy\n", stderr: "" }
+        : { code: 0, stdout: "", stderr: "" },
+    );
     const base: Partial<ServiceEnv> = {
       home,
       platform: "linux",
