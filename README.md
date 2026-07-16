@@ -23,6 +23,12 @@
 
 [Install](#install) · [Privacy](#privacy-first) · [Keep it running](#keep-it-running) · [Leaderboard](#the-leaderboard) · [Support](#support)
 
+**New here?** The [plain-English setup guide](./SETUP.md) walks you through it in five minutes.
+
+<a href="./marketing/grindeasy-demo.mp4"><img src="./marketing/grindeasy-demo.gif" alt="grindeasy demo — npx grindeasy, then a live Discord card" width="720" /></a>
+
+<sub>`npx grindeasy`, join the board, and the card shows up on your profile. <a href="./marketing/grindeasy-demo.mp4">Watch the 28-second version.</a></sub>
+
 </div>
 
 ---
