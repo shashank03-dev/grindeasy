@@ -33,6 +33,14 @@
   ],
   "author": "shashank",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shashank03-dev/grindeasy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shashank03-dev/grindeasy/issues"
+  },
+  "homepage": "https://grindeasy.tech",
   "engines": {
     "node": ">=20"
   },
