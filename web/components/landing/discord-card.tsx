@@ -7,7 +7,10 @@ export function DiscordCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "w-full max-w-[380px] rounded-xl border border-white/10 bg-[#232428] p-4 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.9)]",
+        // text-left: the card is dropped into centered sections, and Discord
+        // never centers these rows — without it the card inherits the section's
+        // alignment and stops reading as the real artifact.
+        "w-full max-w-[380px] rounded-xl border border-white/10 bg-[#232428] p-4 text-left shadow-[0_40px_80px_-40px_rgba(0,0,0,0.9)]",
         className,
       )}
     >

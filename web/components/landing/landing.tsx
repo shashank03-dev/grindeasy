@@ -6,12 +6,13 @@ import { gsap } from "gsap";
 import { ScrollSmoother } from "gsap/ScrollSmoother";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { cn } from "@/lib/utils";
 import { DiscordCard } from "./discord-card";
+import { FinaleInfall } from "./finale-infall";
 import { Magnetic, RollText } from "./interactive";
 import { Mark } from "./mark";
 import { LandingStage, stageState } from "./stage";
 import { TOOL_MARKS } from "./tool-data";
+import { hasWebGL } from "@/lib/webgl";
 
 gsap.registerPlugin(ScrollTrigger, SplitText, ScrollSmoother);
 
@@ -55,9 +56,9 @@ function FallbackMark({ tool }: { tool: (typeof TOOL_MARKS)[number] }) {
           <path d={tool.path} fill="url(#metal-grad)" />
         </svg>
       ) : (
-        <div className="grid h-full w-full place-items-center rounded-[9%] border border-border">
+        <div className="grid h-full w-full place-items-center">
           <span
-            className="metal-text font-caps text-[clamp(1.3rem,4.2vmin,2.6rem)] tracking-[0.12em]"
+            className="metal-text font-caps text-[clamp(1.6rem,5.5vmin,3.2rem)] tracking-[0.14em]"
             style={{ "--tint": tintCss(tool.tint) } as React.CSSProperties}
           >
             {tool.code}
@@ -98,112 +99,14 @@ export function Landing() {
       ctx = gsap.context(() => {
         const mm = gsap.matchMedia();
 
-        // Reduced motion: everything is simply present. No loader hold, no
-        // scroll hijack, no particles (the stage never builds), drawn
-        // decorations already drawn, struck rows already struck.
-        mm.add("(prefers-reduced-motion: reduce)", () => {
-          gsap.set("[data-loader]", { display: "none" });
-          gsap.set("[data-reveal]", { opacity: 1, y: 0 });
-          gsap.set("[data-hero-line]", { opacity: 1 });
-          gsap.set("[data-draw]", { strokeDashoffset: 0 });
-          gsap.set("[data-strike]", { scaleX: 1 });
-        });
-
-        mm.add("(prefers-reduced-motion: no-preference)", () => {
-          const smoother = ScrollSmoother.create({
-            wrapper: "#smooth-wrapper",
-            content: "#smooth-content",
-            smooth: 1.1,
-            effects: true,
-            normalizeScroll: true,
-          });
-
-          // Hero: lines rise out of their own mask.
-          const heads = gsap.utils.toArray<HTMLElement>("[data-hero-line]");
-          const splits = heads.map((el) => SplitText.create(el, { type: "lines", mask: "lines" }));
-          gsap.set(heads, { opacity: 1 });
-
-          const intro = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
-          intro
-            .from(
-              splits.flatMap((s) => s.lines),
-              { yPercent: 115, duration: 1.25, stagger: 0.09 },
-            )
-            .from("[data-hero-eyebrow]", { opacity: 0, duration: 0.6 }, 0.15)
-            .from("[data-hero-sub]", { opacity: 0, y: 24, duration: 0.9 }, 0.5)
-            .from(
-              "[data-hero-actions] > *",
-              { opacity: 0, y: 20, duration: 0.8, stagger: 0.08 },
-              0.65,
-            )
-            .from("[data-hero-cue]", { opacity: 0, duration: 0.6 }, 1);
-
-          // Loader: the mark blurs in over black, holds a beat, blurs out;
-          // scroll stays locked until it clears. Once per session.
-          if (loaderSeen) {
-            intro.play();
-          } else {
-            smoother.paused(true);
-            gsap
-              .timeline({
-                onComplete: () => {
-                  sessionStorage.setItem("ge-loader", "1");
-                  smoother.paused(false);
-                  intro.play();
-                },
-              })
-              .from("[data-loader-brand]", {
-                filter: "blur(10px)",
-                y: 8,
-                opacity: 0,
-                duration: 1.2,
-                ease: "expo.out",
-              })
-              .to(
-                "[data-loader-brand]",
-                { filter: "blur(10px)", opacity: 0, duration: 0.5, ease: "expo.in" },
-                "+=0.6",
-              )
-              .to("[data-loader]", { autoAlpha: 0, duration: 0.4 }, "<0.2")
-              .set("[data-loader]", { display: "none" });
-          }
-
-          // The morph: hero pinned while the photograph's particles stream out
-          // and re-form as the first tool's mark, hold it, then lift away —
-          // the seam into the tools section. stageState is read by the WebGL
-          // loop every frame; on the no-WebGL path the same scrub fades the
-          // static image instead and the section header simply arrives.
-          gsap
-            .timeline({
-              defaults: { ease: "none" },
-              scrollTrigger: {
-                trigger: "#hero",
-                start: "top top",
-                end: "+=170%",
-                pin: true,
-                scrub: 1,
-              },
-            })
-            .to("[data-hero-content]", { opacity: 0, yPercent: -14, duration: 0.28 }, 0)
-            .to("[data-hero-scrim]", { opacity: 0, duration: 0.32 }, 0)
-            .to("[data-hero-img]", { opacity: 0, duration: 0.4 }, 0.05)
-            .to(stageState, { morph: 1, duration: 0.75 }, 0.08);
-
-          // The handoff: the formed mark holds until the seam row actually
-          // arrives, then thins away exactly while the metal version rises to
-          // centre — no dead viewport between pin release and the section.
-          gsap.to(stageState, {
-            heroAlpha: 0,
-            ease: "none",
-            scrollTrigger: {
-              trigger: "#tools",
-              start: "top bottom",
-              end: "top top",
-              scrub: true,
-            },
-          });
-
-          // Tool names: the specular slides across the metal exactly as fast
+        // Every scroll-driven scene on the page, shared by both motion paths:
+        // the owner wants the full scroll story — the tools wheel included —
+        // under reduced motion too. What that path drops is the loader, the
+        // smoothing, the particle field, and the hero-pin morph; the page
+        // itself animates the same. Scenes are created in page order so
+        // ScrollTrigger refreshes them top to bottom.
+        const buildScrollScenes = () => {
+          // Seam name: the specular slides across the metal exactly as fast
           // as the name crosses the viewport. Scroll is the light.
           gsap.utils.toArray<HTMLElement>("[data-tool-name]").forEach((el) => {
             gsap.fromTo(
@@ -216,6 +119,103 @@ export function Landing() {
               },
             );
           });
+
+          // The wheel — valeran's MWG040 motion, mechanics taken from its
+          // live JS: each item is the full circle box pre-rotated i·14.5°,
+          // its child counter-rotated to stay level; scroll scrubs every
+          // circle through -(180 + 14.5·n)° while the stage is pinned, and
+          // the children take the inverse so names and marks orbit without
+          // ever tilting.
+          const wheelPin = document.querySelector<HTMLElement>("[data-wheel-pin]");
+          const wheelStage = document.querySelector<HTMLElement>("[data-wheel-stage]");
+          const left = document.querySelector<HTMLElement>("[data-wheel-circle-left]");
+          const right = document.querySelector<HTMLElement>("[data-wheel-circle-right]");
+          if (wheelPin && wheelStage && left && right) {
+            const ANGLE = 14.5;
+            const leftItems = gsap.utils.toArray<HTMLElement>(".wheel-item", left);
+            const rightItems = gsap.utils.toArray<HTMLElement>(".wheel-item", right);
+            const labels = leftItems.map((el) => el.querySelector<HTMLElement>(".wheel-label")!);
+            // No dead scroll at either end: the circles start pre-rotated so
+            // the first item is already at the viewport's edge when the pin
+            // engages (an item is on screen for roughly ±45° around the -90°
+            // mouth), and the sweep stops once the last item has cleared.
+            const START = -24;
+            const END = -(90 + ANGLE * (leftItems.length - 1) + 55);
+            const sweep = START - END;
+            gsap.set([left, right], { rotation: START });
+            leftItems.forEach((el, i) => {
+              gsap.set(el, { rotation: i * ANGLE });
+              gsap.set(labels[i]!, { rotation: -i * ANGLE - START });
+            });
+            const media = rightItems.map((el) => el.querySelector<HTMLElement>(".wheel-media")!);
+            rightItems.forEach((el, i) => {
+              gsap.set(el, { rotation: i * ANGLE });
+              gsap.set(media[i]!, { rotation: -i * ANGLE - START });
+            });
+            // Near the circle's top the marks sit shoulder to shoulder — still
+            // inside the stage box, so clipping can't hide the pile. Each mark
+            // fades in only as it swings down toward the mouth (visible band
+            // ~56–128° for the right circle) and out again as it leaves. The
+            // WebGL pass reads this opacity off the element every frame.
+            const fadeMedia = () => {
+              const rot = Number(gsap.getProperty(right, "rotation"));
+              media.forEach((m, i) => {
+                const d = i * ANGLE + rot + 180;
+                m.style.opacity = String(
+                  gsap.utils.clamp(0, 1, Math.min((140 - d) / 12, (d - 42) / 12)),
+                );
+              });
+            };
+            fadeMedia();
+            const scrollConfig = {
+              trigger: wheelPin,
+              start: "top top",
+              end: "bottom bottom",
+              scrub: true,
+            };
+            gsap.to(left, {
+              rotation: END,
+              ease: "none",
+              scrollTrigger: {
+                ...scrollConfig,
+                pin: wheelStage,
+                // Never position:fixed — the curtain tween puts a transform on
+                // [data-tools-inner], which would become fixed's containing
+                // block and glue the stage to the section instead of the
+                // viewport. (The smoother path implies this; the reduced-
+                // motion native-scroll path needs it said.)
+                pinType: "transform",
+                onUpdate: () => {
+                  // The labels' shine rides the same rotation: world angle
+                  // -90° is the wheel's mouth where a name reads level, and
+                  // the specular makes its full travel across ±25° of it.
+                  const rot = Number(gsap.getProperty(left, "rotation"));
+                  labels.forEach((label, i) => {
+                    const world = i * ANGLE + rot;
+                    label.style.setProperty(
+                      "--shine",
+                      String(gsap.utils.clamp(-0.25, 1.25, 0.5 + (world + 90) / 50)),
+                    );
+                  });
+                },
+              },
+            });
+            gsap.to(labels, {
+              rotation: `+=${sweep}`,
+              ease: "none",
+              scrollTrigger: { ...scrollConfig },
+            });
+            gsap.to(right, {
+              rotation: END,
+              ease: "none",
+              scrollTrigger: { ...scrollConfig, onUpdate: fadeMedia },
+            });
+            gsap.to(right.querySelectorAll(".wheel-media"), {
+              rotation: `+=${sweep}`,
+              ease: "none",
+              scrollTrigger: { ...scrollConfig },
+            });
+          }
 
           // Finale: the Discord card assembles and its timer runs up as it
           // crosses the viewport — the twelve tools funnel into this one card.
@@ -272,6 +272,11 @@ export function Landing() {
             type: "chars,lines",
             mask: "lines",
           });
+          // The editorial face's ascenders (the f's hook) overshoot the line
+          // box, and the line masks clip them — "file" read as "tile". Give
+          // each mask headroom, cancelled by margin so the leading is
+          // untouched; bottom stays flush so entering chars stay hidden.
+          gsap.set(statement.masks, { paddingTop: "0.18em", marginTop: "-0.18em" });
           gsap.from(statement.chars, {
             yPercent: 120,
             stagger: 0.012,
@@ -333,9 +338,169 @@ export function Landing() {
               }),
           });
 
+          return () => statement.revert();
+        };
+
+        // Reduced motion: no loader hold, no scroll hijack, no particles (the
+        // stage runs background-only), no hero pin — but the scroll scenes
+        // themselves still play, on native scroll.
+        mm.add("(prefers-reduced-motion: reduce)", () => {
+          gsap.set("[data-loader]", { display: "none" });
+          gsap.set("[data-hero-line]", { opacity: 1 });
+          const teardownScenes = buildScrollScenes();
+          return teardownScenes;
+        });
+
+        mm.add("(prefers-reduced-motion: no-preference)", () => {
+          const smoother = ScrollSmoother.create({
+            wrapper: "#smooth-wrapper",
+            content: "#smooth-content",
+            smooth: 1.1,
+            effects: true,
+            normalizeScroll: true,
+          });
+
+          // Hero: lines rise out of their own mask.
+          const heads = gsap.utils.toArray<HTMLElement>("[data-hero-line]");
+          const splits = heads.map((el) => SplitText.create(el, { type: "lines", mask: "lines" }));
+          // Headroom both ways: at leading 0.94 the caps overshoot the line box
+          // upward (em box overflow + the face's own cap overshoot) and the
+          // swash descenders (the y, the g) overshoot it below — short either
+          // pair and the masks shave the glyphs flat.
+          splits.forEach((s) =>
+            gsap.set(s.masks, {
+              paddingTop: "0.32em",
+              marginTop: "-0.32em",
+              paddingBottom: "0.3em",
+              marginBottom: "-0.3em",
+            }),
+          );
+          // The metal goes on the split's line elements — they hold the glyphs
+          // directly, which background-clip:text requires. Inline --tint and
+          // --shine, because .metal-text's own defaults would shadow anything
+          // inherited from the heading.
+          const heroLines = splits.flatMap((s) => s.lines) as HTMLElement[];
+          heroLines.forEach((l) => l.classList.add("metal-text", "metal-bright"));
+          gsap.set(heroLines, { "--tint": "#dfe6ee" });
+          gsap.set(heads, { opacity: 1 });
+
+          const intro = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
+          intro
+            // 165, not 115: the masks open 0.3em below the line box for the
+            // descenders, and the caps overshoot the line box top — the hiding
+            // spot has to clear both or cap tops peek through the opened
+            // window before the rise.
+            .from(
+              splits.flatMap((s) => s.lines),
+              { yPercent: 165, duration: 1.25, stagger: 0.09 },
+            )
+            // One specular pass over the heading as it lands — the metal
+            // announcing itself — settling just left of centre.
+            .fromTo(
+              heroLines,
+              { "--shine": -0.25 },
+              { "--shine": 0.55, duration: 2.2, ease: "power2.inOut" },
+              0.35,
+            )
+            .from("[data-hero-eyebrow]", { opacity: 0, duration: 0.6 }, 0.15)
+            .from("[data-hero-sub]", { opacity: 0, y: 24, duration: 0.9 }, 0.5)
+            .from(
+              "[data-hero-actions] > *",
+              { opacity: 0, y: 20, duration: 0.8, stagger: 0.08 },
+              0.65,
+            )
+            .from("[data-hero-cue]", { opacity: 0, duration: 0.6 }, 1);
+
+          // After the intro settles, the light keeps living: every few seconds
+          // a specular pass slides off the right edge, resets off-glyph on the
+          // left (both ends are dark, so the jump is invisible), and sweeps
+          // back to the intro's resting point.
+          gsap
+            .timeline({ repeat: -1, repeatDelay: 4.5, delay: 6.5 })
+            .to(heroLines, { "--shine": 1.6, duration: 1.3, ease: "power2.in" })
+            .set(heroLines, { "--shine": -0.5 })
+            .to(heroLines, { "--shine": 0.55, duration: 1.7, ease: "power2.out" });
+
+          // Loader: the mark blurs in over black, holds a beat, blurs out;
+          // scroll stays locked until it clears. Once per session.
+          if (loaderSeen) {
+            intro.play();
+          } else {
+            smoother.paused(true);
+            gsap
+              .timeline({
+                onComplete: () => {
+                  sessionStorage.setItem("ge-loader", "1");
+                  smoother.paused(false);
+                },
+              })
+              .from("[data-loader-brand]", {
+                filter: "blur(10px)",
+                y: 8,
+                opacity: 0,
+                duration: 0.85,
+                ease: "expo.out",
+              })
+              // The hero starts rising behind the loader's fade rather than
+              // after it — the page reads as arriving, not as waiting twice.
+              .add(() => intro.play(), "+=0.35")
+              .to("[data-loader-brand]", {
+                filter: "blur(10px)",
+                opacity: 0,
+                duration: 0.5,
+                ease: "expo.in",
+              })
+              .to("[data-loader]", { autoAlpha: 0, duration: 0.4 }, "<0.2")
+              .set("[data-loader]", { display: "none" });
+          }
+
+          // The morph: hero pinned while the photograph's particles stream out
+          // and re-form as the first tool's mark, hold it, then lift away —
+          // the seam into the tools section. stageState is read by the WebGL
+          // loop every frame. Without WebGL there is no morph to give the pin
+          // its 170% — holding that length would be 1.7 viewports of black —
+          // so the static path keeps only a short beat for the image dissolve.
+          const glCapable = hasWebGL();
+          const morphTl = gsap
+            .timeline({
+              defaults: { ease: "none" },
+              scrollTrigger: {
+                trigger: "#hero",
+                start: "top top",
+                end: glCapable ? "+=170%" : "+=45%",
+                pin: true,
+                scrub: 1,
+              },
+            })
+            .to("[data-hero-content]", { opacity: 0, yPercent: -14, duration: 0.28 }, 0)
+            .to("[data-hero-cue]", { opacity: 0, duration: 0.2 }, 0)
+            .to("[data-hero-scrim]", { opacity: 0, duration: 0.32 }, 0)
+            .to("[data-hero-img]", { opacity: 0, duration: 0.4 }, 0.05);
+          if (glCapable) {
+            morphTl.to(stageState, { morph: 1, duration: 0.75 }, 0.08);
+
+            // The handoff: the formed mark holds until the seam row actually
+            // arrives, then thins away exactly while the metal version rises to
+            // centre — no dead viewport between pin release and the section.
+            gsap.to(stageState, {
+              heroAlpha: 0,
+              ease: "none",
+              scrollTrigger: {
+                trigger: "#tools",
+                start: "top bottom",
+                end: "top top",
+                scrub: true,
+              },
+            });
+          }
+
+          // Everything scroll-driven from the tools seam down is shared with
+          // the reduced-motion path — built once, above.
+          const teardownScenes = buildScrollScenes();
+
           return () => {
             splits.forEach((s) => s.revert());
-            statement.revert();
+            teardownScenes();
             smoother.kill();
           };
         });
@@ -350,6 +515,42 @@ export function Landing() {
     };
   }, []);
 
+  // Cursor parallax for the aurora curtain: lean the whole layer a few px
+  // toward the pointer. Written straight to CSS vars the .aurora transform
+  // reads (inherited down from the landing root) — no React state, no
+  // re-render per move. The position eases toward the target in a rAF loop
+  // that stops once it settles, so it glides instead of snapping.
+  useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const el = root.current;
+    if (!el) return;
+    let raf = 0;
+    let curX = 0;
+    let curY = 0;
+    let tgtX = 0;
+    let tgtY = 0;
+    const tick = () => {
+      curX += (tgtX - curX) * 0.08;
+      curY += (tgtY - curY) * 0.08;
+      el.style.setProperty("--aurora-x", `${curX.toFixed(2)}px`);
+      el.style.setProperty("--aurora-y", `${curY.toFixed(2)}px`);
+      raf =
+        Math.abs(tgtX - curX) > 0.1 || Math.abs(tgtY - curY) > 0.1
+          ? requestAnimationFrame(tick)
+          : 0;
+    };
+    const onMove = (e: MouseEvent) => {
+      tgtX = (e.clientX / window.innerWidth - 0.5) * 26;
+      tgtY = (e.clientY / window.innerHeight - 0.5) * 14;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <div ref={root} data-landing>
       {/* Without JS nothing animates, so nothing may start hidden. */}
@@ -361,10 +562,11 @@ export function Landing() {
       <svg aria-hidden className="absolute h-0 w-0">
         <defs>
           <linearGradient id="metal-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#e8edf2" />
-            <stop offset="0.48" stopColor="#878f99" />
-            <stop offset="0.66" stopColor="#f4f7fa" />
-            <stop offset="1" stopColor="#565c64" />
+            <stop offset="0" stopColor="#eaf0f7" />
+            <stop offset="0.42" stopColor="#8b95a3" />
+            <stop offset="0.58" stopColor="#f6f9fc" />
+            <stop offset="0.78" stopColor="#6d7684" />
+            <stop offset="1" stopColor="#4e555f" />
           </linearGradient>
         </defs>
       </svg>
@@ -373,6 +575,15 @@ export function Landing() {
           transforms #smooth-content, and position:fixed inside a transformed
           ancestor silently becomes "scrolls away with the page". */}
       <LandingStage />
+      <div aria-hidden className="light-pool" />
+      {/* Page-wide aurora curtain — see .aurora in globals.css. Four soft
+          light shafts, cursor-parallaxed, riding over the opaque sections. */}
+      <div aria-hidden className="aurora">
+        <span className="aurora__beam aurora__beam--1" />
+        <span className="aurora__beam aurora__beam--2" />
+        <span className="aurora__beam aurora__beam--3" />
+        <span className="aurora__beam aurora__beam--4" />
+      </div>
       <div aria-hidden className="noise" />
 
       {/* Loader: brand over black, blur-in → hold → blur-out, once per session. */}
@@ -405,9 +616,16 @@ export function Landing() {
       <div id="smooth-wrapper">
         <div id="smooth-content">
           {/* ── Hero: the photograph, particle-borne ─────────────────────── */}
+          {/* The hero is built on the golden section: bottom padding of
+              38.2svh minus the actions row's own height pins that row's top
+              edge to the 61.8 line, and the copy block centres in what
+              remains, which lands its optical centre near the upper golden
+              line — no magic offsets, the proportions come from the frame.
+              On phones the construction relaxes to a plain stack with room
+              for the scroll cue. */}
           <section
             id="hero"
-            className="relative z-10 flex min-h-svh flex-col justify-end overflow-hidden px-6 pb-10 pt-28 sm:px-10"
+            className="relative z-10 flex min-h-svh flex-col overflow-hidden px-6 pb-36 pt-28 sm:px-10 sm:pb-[calc(38.2svh-3.4rem)]"
           >
             {/* The static photograph: the LCP, and the whole hero when WebGL
                 is unavailable. The outer layer is CSS-hidden once the particle
@@ -420,20 +638,46 @@ export function Landing() {
                 src="/landing/hero.jpg"
                 alt="A lone developer at a desk under a single cold light, screens glowing in a black void."
                 fetchPriority="high"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover [filter:saturate(1.14)_contrast(1.05)]"
               />
             </div>
+            {/* Both carry data-hero-scrim so the morph scrub fades them as one. */}
+            <div data-hero-scrim aria-hidden className="hero-grade absolute inset-0" />
             <div data-hero-scrim aria-hidden className="scrim-b absolute inset-x-0 bottom-0 h-[62%]" />
 
-            <div data-hero-content className="relative mx-auto w-full max-w-[1400px]">
-              <p
-                data-hero-eyebrow
-                className="font-caps text-[11px] uppercase tracking-[0.34em] text-muted-foreground"
-              >
-                Local agent · v0.5.0 · MIT
-              </p>
+            {/* Everything stays in the left column — copy and actions both —
+                so the photograph's subject keeps the lower right of the frame
+                entirely to itself. */}
+            <div data-hero-content className="relative mx-auto flex w-full max-w-[1400px] flex-1 flex-col">
+              {/* pb-6 and no more: it's the minimum sub-to-actions gap, but any
+                  height the copy group adds past the viewport pushes the whole
+                  section — and the actions row — below the golden line. */}
+              {/* translate, not padding, to sit the copy a touch lower: a
+                  transform adds no layout height, so the golden-line math on
+                  the section's bottom padding stays untouched. */}
+              <div className="flex flex-1 translate-y-4 flex-col justify-center pb-6 sm:translate-y-7">
+                <p
+                  data-hero-eyebrow
+                  className="font-caps text-[11px] uppercase tracking-[0.34em] text-muted-foreground"
+                >
+                  Local agent · v0.5.0 · MIT
+                </p>
 
-              <h1 className="mt-5 font-editorial text-[clamp(3rem,9vw,9rem)] leading-[0.94] tracking-[-0.01em] text-foreground">
+              {/* The heading becomes the same struck metal as the tool names
+                  once SplitText runs — the classes go on the split's own line
+                  elements in the intro setup, because background-clip:text dies
+                  the moment a wrapper div sits between it and the glyphs. On
+                  the non-splitting paths (reduced motion, JS off) this stays
+                  plain foreground text. */}
+              {/* flex column, not plain blocks: the SplitText masks carry
+                  padding + negative-margin pairs that must cancel to zero, and
+                  between block siblings the negative margins would collapse to
+                  the most negative one instead of summing — flex items never
+                  collapse margins. */}
+              <h1
+                data-hero-head
+                className="mt-5 flex flex-col font-editorial text-[clamp(3rem,9vw,9rem)] leading-[0.94] tracking-[-0.01em] text-foreground"
+              >
                 {HERO_LINES.map((line) => (
                   <span key={line} data-hero-line className="block opacity-0">
                     {line}
@@ -441,33 +685,35 @@ export function Landing() {
                 ))}
               </h1>
 
-              <div className="mt-9 flex flex-wrap items-end justify-between gap-x-16 gap-y-8">
                 <p
                   data-hero-sub
-                  className="max-w-[46ch] text-[16px] leading-relaxed text-muted-foreground"
+                  className="mt-9 max-w-[46ch] text-[16px] leading-relaxed text-muted-foreground"
                 >
                   A tiny local agent that puts the AI tool you’re actually using on your Discord
-                  profile, live while you work.{" "}
-                  <span className="text-foreground">It never reads your code.</span>
+                  profile,{" "}
+                  <span className="font-serif text-[1.2em] italic text-foreground/85">
+                    live while you work.
+                  </span>{" "}
+                  <span className="font-serif text-[1.2em] italic text-foreground">
+                    It never reads your code.
+                  </span>
                 </p>
+              </div>
 
-                <div data-hero-actions className="flex flex-wrap items-center gap-5">
-                  <Magnetic>
-                    <button
-                      type="button"
-                      data-roll
-                      onClick={copyInstall}
-                      className="flex items-center gap-3 rounded-full border border-input bg-background/50 px-6 py-4 font-mono text-[14px] text-foreground backdrop-blur-sm transition-colors hover:border-primary"
-                    >
-                      <span className="text-primary">$</span>
-                      <span data-mag="0.4" className="inline-flex">
-                        <RollText text="npx grindeasy" />
-                      </span>
-                      <span className="ml-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        {copied ? "copied" : "copy"}
-                      </span>
-                    </button>
-                  </Magnetic>
+              <div data-hero-actions className="flex flex-wrap items-center gap-5">
+                  {/* Deliberately static — no magnet, no roll. It's the command
+                      you're about to copy; it should hold still like one. */}
+                  <button
+                    type="button"
+                    onClick={copyInstall}
+                    className="flex items-center gap-3 rounded-full border border-input bg-background/50 px-6 py-4 font-mono text-[14px] text-foreground backdrop-blur-sm transition-colors hover:border-primary"
+                  >
+                    <span className="text-primary">$</span>
+                    <span>npx grindeasy</span>
+                    <span className="ml-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      {copied ? "copied" : "copy"}
+                    </span>
+                  </button>
 
                   <Magnetic>
                     <Link
@@ -481,13 +727,19 @@ export function Landing() {
                       </span>
                     </Link>
                   </Magnetic>
-                </div>
               </div>
+            </div>
 
-              <p
-                data-hero-cue
-                className="mt-12 text-center font-caps text-[10px] uppercase tracking-[0.4em] text-muted-foreground"
-              >
+            {/* Outside data-hero-content: the copy block is golden-section
+                built now, but the cue still belongs to the bottom edge. The
+                hairline above it drops a dot over and over — the page's one
+                standing invitation to scroll. */}
+            <div
+              data-hero-cue
+              className="absolute inset-x-0 bottom-8 flex flex-col items-center gap-4"
+            >
+              <span aria-hidden className="cue-line" />
+              <p className="text-center font-caps text-[10px] uppercase tracking-[0.4em] text-muted-foreground">
                 Scroll — the picture comes apart
               </p>
             </div>
@@ -519,55 +771,55 @@ export function Landing() {
                 </h2>
               </div>
 
-              {TOOL_MARKS.slice(1).map((tool, idx) => {
-                const i = idx + 1;
-                const odd = i % 2 === 1;
-                return (
-                  <div
-                    key={tool.name}
-                    className={cn(
-                      "mx-auto flex max-w-[1500px] items-center gap-[6vw] px-6 py-[8vh] sm:px-10",
-                      odd && "flex-row-reverse",
-                    )}
-                  >
-                    <div data-speed={odd ? "1.06" : "0.95"} className="min-w-0 flex-1">
-                      <p className="font-caps text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                        {String(i + 1).padStart(2, "0")}
-                      </p>
-                      <h3
-                        data-tool-name
-                        className={cn(
-                          "metal-text mt-3 font-editorial text-[clamp(2.5rem,7.5vw,7.5rem)] leading-[0.95]",
-                          odd && "text-right",
-                        )}
-                        style={{ "--tint": tintCss(tool.tint) } as React.CSSProperties}
-                      >
-                        {tool.name}
-                      </h3>
-                    </div>
-                    <div
-                      data-speed={odd ? "0.93" : "1.05"}
-                      data-metal-anchor={i}
-                      className="relative aspect-square w-[clamp(110px,18vmin,220px)] shrink-0"
-                    >
-                      <FallbackMark tool={tool} />
-                    </div>
+              {/* The wheel: the other eleven orbit through the viewport on two
+                  counter-weighted circles — names off the left edge, marks off
+                  the right — scrubbed by four viewports of scroll while the
+                  stage holds still. */}
+              <div data-wheel-pin className="wheel-pin">
+                <div data-wheel-stage className="wheel-stage">
+                  <div data-wheel-circle-left aria-hidden className="wheel-circle wheel-circle-left">
+                    {TOOL_MARKS.slice(1).map((tool) => (
+                      <div key={tool.name} className="wheel-item">
+                        <p
+                          className="wheel-label metal-text font-editorial"
+                          style={{ "--tint": tintCss(tool.tint) } as React.CSSProperties}
+                        >
+                          {tool.name}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+                  <div data-wheel-circle-right className="wheel-circle wheel-circle-right">
+                    {TOOL_MARKS.slice(1).map((tool, idx) => (
+                      <div key={tool.name} className="wheel-item">
+                        <div data-metal-anchor={idx + 1} className="wheel-media">
+                          <FallbackMark tool={tool} />
+                          <span className="sr-only">{tool.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               {/* Finale: twelve tools, one card. */}
               <div
                 data-finale
-                className="flex min-h-svh flex-col items-center justify-center gap-12 px-6 py-24 text-center"
+                className="relative flex min-h-svh flex-col items-center justify-center gap-12 overflow-hidden px-6 py-24 text-center"
               >
-                <h2 className="max-w-[16ch] font-editorial text-[clamp(2.4rem,6vw,5.5rem)] leading-[0.98] text-foreground">
+                {/* The page's dust, landing: particles drift in from the
+                    section's edges and are absorbed into the card. */}
+                <FinaleInfall />
+                <h2 className="relative max-w-[16ch] font-editorial text-[clamp(2.4rem,6vw,5.5rem)] leading-[0.98] text-foreground">
                   All of it lands on your profile.
                 </h2>
-                <div data-act-card>
-                  <DiscordCard />
+                <div data-act-card className="relative">
+                  {/* The light the dust lands in — and the whole backdrop when
+                      the canvas doesn't run (reduced motion, JS off). */}
+                  <div aria-hidden className="infall-bloom" />
+                  <DiscordCard className="relative" />
                 </div>
-                <p className="max-w-[44ch] text-[15px] leading-relaxed text-muted-foreground">
+                <p className="relative max-w-[44ch] text-[15px] leading-relaxed text-muted-foreground">
                   The card appears the moment a tracked tool goes active, your rank rides on it
                   while you work, and it clears when the tool stops. Nothing to configure.
                 </p>
@@ -640,15 +892,18 @@ export function Landing() {
                       never
                       <svg
                         aria-hidden
-                        viewBox="0 0 120 56"
+                        viewBox="0 0 120 58"
                         fill="none"
                         preserveAspectRatio="none"
-                        className="pointer-events-none absolute -left-[12%] -top-[22%] h-[150%] w-[124%]"
+                        className="pointer-events-none absolute -left-[18%] -top-[32%] h-[164%] w-[136%]"
                       >
+                        {/* A full ellipse around the word — starts left-of-centre,
+                            sweeps the top, and overlaps its own tail so it reads
+                            hand-drawn without ever crossing the letters. */}
                         <path
                           data-draw
                           pathLength={1}
-                          d="M10 32 C 12 12, 74 4, 104 14 C 120 20, 116 40, 84 48 C 48 56, 8 50, 8 34 C 8 28, 16 22, 28 19"
+                          d="M14 30 C 14 13, 40 6, 62 6 C 90 6, 110 13, 110 29 C 110 44, 86 52, 58 52 C 32 52, 12 45, 12 31 C 12 22, 24 13, 44 9"
                           stroke="var(--primary)"
                           strokeWidth="2.5"
                           strokeLinecap="round"
@@ -685,7 +940,7 @@ export function Landing() {
 
               <p
                 data-reveal
-                className="mt-14 translate-y-6 text-[15px] text-muted-foreground opacity-0"
+                className="mt-14 max-w-[68ch] translate-y-6 text-[15px] text-muted-foreground opacity-0"
               >
                 By default the agent talks to your Discord app and a dashboard on localhost, and
                 nothing else. The leaderboard is opt-in. The whole thing is open source, so check
@@ -707,7 +962,7 @@ export function Landing() {
               >
                 One board.{" "}
                 <span className="relative inline-block">
-                  hours,
+                  Hours,
                   <svg
                     aria-hidden
                     viewBox="0 0 200 14"

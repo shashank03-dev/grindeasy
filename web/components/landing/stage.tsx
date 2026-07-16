@@ -26,7 +26,8 @@ import { TOOL_MARKS } from "./tool-data";
 export const stageState = {
   /** 0 = hero image intact, 1 = particles re-formed as the first tool mark. */
   morph: 0,
-  /** Global particle opacity; driven to 0 as the tools section takes over. */
+  /** Fallback particle opacity, used only until the seam anchor exists — once
+   *  marks are built the crossfade is driven by the anchor's own position. */
   heroAlpha: 1,
 };
 
@@ -36,8 +37,10 @@ const MARK_TEX = 256;
 // Theme colors, duplicated from the [data-landing] scope as plain RGB. Reading
 // them from CSS would mean converting oklch at runtime; the theme is ours, so
 // the two definitions are kept in step by hand.
-const BG_RGB: [number, number, number] = [0.05, 0.055, 0.07];
-const LIGHT_RGB: [number, number, number] = [0.62, 0.68, 0.78];
+const BG_RGB: [number, number, number] = [0.04, 0.052, 0.085];
+const LIGHT_RGB: [number, number, number] = [0.58, 0.76, 0.9];
+// The ember accent (--ember), the warm half of the grade.
+const EMBER_RGB: [number, number, number] = [0.94, 0.56, 0.24];
 
 /* ── Shaders ─────────────────────────────────────────────────────────────── */
 
@@ -59,6 +62,7 @@ const bgFragment = /* glsl */ `
   uniform float uAspect;
   uniform vec3 uBg;
   uniform vec3 uTint;
+  uniform vec3 uEmber;
 
   varying vec2 vUv;
 
@@ -95,18 +99,24 @@ const bgFragment = /* glsl */ `
     float n = fbm(p * 2.2 + vec2(uTime * 0.016, -uTime * 0.011));
     n = fbm(p * 2.6 + n * 0.9 + vec2(-uTime * 0.008, uTime * 0.013));
 
-    vec3 col = uBg * (0.82 + 0.5 * n);
+    vec3 col = uBg * (0.78 + 0.55 * n);
+
+    // Split-tone grade: the troughs of the noise sink toward cold teal, the
+    // crests pick up a breath of the ember — cinema shadows, not a grey fog.
+    col += vec3(0.008, 0.016, 0.034) * (1.0 - n);
+    col += uEmber * 0.02 * pow(n, 2.4);
 
     // The spotlight: a soft pool that follows the cursor, brighter where the
     // noise happens to fold — light on a textured surface, not a flat radial.
     vec2 m = vec2(uMouse.x * uAspect, uMouse.y) * 0.5 + vec2(uAspect * 0.5, 0.5);
     float d = length(p - m);
     float pool = exp(-d * d * 5.5);
-    col += uTint * pool * (0.05 + 0.075 * n);
+    col += uTint * pool * (0.06 + 0.09 * n);
 
-    // A faint fixed glow at the top center, echoing the photo's overhead lamp.
+    // A faint fixed glow at the top center, echoing the photo's overhead lamp
+    // — warmed slightly, the way the lamp actually reads in the photograph.
     float lamp = exp(-length((p - vec2(uAspect * 0.5, 1.05)) * vec2(1.0, 1.6)) * 2.2);
-    col += uTint * lamp * 0.04;
+    col += mix(uTint, uEmber, 0.35) * lamp * 0.05;
 
     // Film grain, per-pixel per-frame.
     col += (hash(vUv * vec2(1621.0, 917.0) + fract(uTime)) - 0.5) * 0.055;
@@ -126,7 +136,8 @@ const particleVertex = /* glsl */ `
   uniform float uAlpha;
   uniform float uDpr;
   uniform vec2 uImgScale;   // image rect in clip units (cover fit)
-  uniform vec2 uMarkScale;  // mark box in clip units (centered)
+  uniform vec2 uMarkScale;  // mark box in clip units
+  uniform vec2 uMarkPos;    // mark box center, clip space — glides onto the seam anchor
   uniform vec2 uMouse;      // clip space
   uniform float uAspect;
   uniform vec3 uMarkTint;
@@ -142,7 +153,7 @@ const particleVertex = /* glsl */ `
     float e = prog * prog * (3.0 - 2.0 * prog);
 
     vec2 from = aStart * uImgScale;
-    vec2 to = aTarget * uMarkScale;
+    vec2 to = aTarget * uMarkScale + uMarkPos;
     vec2 pos = mix(from, to, e);
 
     // Mid-flight scatter: an arc perpendicular to the travel direction plus a
@@ -170,13 +181,10 @@ const particleVertex = /* glsl */ `
     float repel = exp(-dist * dist * 26.0) * mix(0.12, 0.03, e);
     pos += (dm / max(dist, 0.001)) * repel / ac;
 
-    // The exit: once the mark has formed and the section takes over, the whole
-    // field lifts and thins as it fades.
-    pos.y += (1.0 - uAlpha) * uMorph * 0.45;
-
     // The photo's tones are dark by design; lift them so the field reads
-    // against the near-black background.
-    vColor = mix(aColor * 1.35, uMarkTint * (0.85 + 0.5 * aRand.z), e * 0.9);
+    // against the near-black background — graded cool, blue lifted hardest,
+    // to sit inside the page's teal-and-ember look.
+    vColor = mix(aColor * vec3(1.3, 1.36, 1.5), uMarkTint * (0.85 + 0.5 * aRand.z), e * 0.9);
     vColor *= 1.0 + 0.9 * flight;
     vAlpha = uAlpha * mix(0.9, 1.0, aRand.w);
 
@@ -220,12 +228,24 @@ const markFragment = /* glsl */ `
   uniform sampler2D tMap;
   uniform float uSweep;   // 0 entering below → 1 leaving above
   uniform float uAlpha;
+  uniform float uTime;
   uniform vec3 uTint;
 
   varying vec2 vUv;
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+      mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
   }
 
   void main() {
@@ -239,21 +259,50 @@ const markFragment = /* glsl */ `
     float gy = texture2D(tMap, vUv + vec2(0.0, px.y)).a - texture2D(tMap, vUv - vec2(0.0, px.y)).a;
     vec3 n = normalize(vec3(-gx * 2.4, -gy * 2.4, 1.0));
 
-    // The light orbits as the mark travels the viewport: scroll IS the light.
+    // Living surface: a slow current and a fine horizontal brush drift across
+    // the face and perturb the normal, so the flats shimmer like drawn metal
+    // instead of holding one dead value.
+    float flow = noise(vUv * 3.5 + vec2(uTime * 0.05, -uTime * 0.035));
+    float brush = noise(vec2(vUv.x * 2.5 + uTime * 0.04, vUv.y * 26.0));
+    n.xy += vec2(flow - 0.5, brush - 0.5) * 0.32;
+    n = normalize(n);
+
+    // Studio setup, three lights. The key orbits as the mark travels the
+    // viewport — scroll IS the light. A cold rim holds the upper left, a low
+    // ember bounce warms the underside: the same teal-and-ember grade as the
+    // rest of the page, landing on the metal.
     float ang = mix(-0.9, 3.8, uSweep);
-    vec3 l = normalize(vec3(cos(ang), sin(ang), 0.75));
-    float diff = max(dot(n, l), 0.0);
-    float spec = pow(max(dot(reflect(-l, n), vec3(0.0, 0.0, 1.0)), 0.0), 26.0);
+    vec3 key = normalize(vec3(cos(ang), sin(ang), 0.7));
+    float diff = max(dot(n, key), 0.0);
+    float spec = pow(max(dot(reflect(-key, n), vec3(0.0, 0.0, 1.0)), 0.0), 34.0);
 
-    vec3 col = uTint * (0.22 + 0.7 * diff);
-    col *= 0.82 + 0.36 * vUv.y; // top-lit vertical shade
+    vec3 rimL = normalize(vec3(-0.55, 0.75, 0.42));
+    float rim = pow(max(dot(n, rimL), 0.0), 2.0);
 
-    // A specular band that wipes across the face with the same progress.
+    vec3 warmL = normalize(vec3(0.3, -0.8, 0.5));
+    float warm = max(dot(n, warmL), 0.0);
+
+    const vec3 ICE = vec3(0.58, 0.76, 0.9);
+    const vec3 EMBER = vec3(0.94, 0.56, 0.24);
+
+    vec3 col = uTint * (0.17 + 0.66 * diff);
+    col += ICE * rim * 0.17;
+    col += EMBER * warm * 0.1;
+    col *= 0.84 + 0.32 * vUv.y; // top-lit vertical shade
+
+    // Sheen carried by the flow — the "oil on steel" life. A warm↔cool
+    // seesaw (red up / blue down and back) on the page's ember↔ice axis:
+    // green never moves, so no phase of the shine can drift green.
+    float sheen = cos(6.2832 * (flow * 0.85 + vUv.x * 0.4));
+    col *= 1.0 + sheen * vec3(0.1, 0.0, -0.1);
+
+    // A specular band that wipes across the face with the same progress,
+    // cooled toward the ice light so it reads as the studio's soft box.
     float band = smoothstep(0.32, 0.0, abs(vUv.x + vUv.y - mix(-0.5, 2.5, uSweep)));
-    col += vec3(1.0) * (band * 0.28 + spec * 0.85);
+    col += mix(vec3(1.0), ICE, 0.35) * band * 0.3 + vec3(1.0) * spec * 0.9;
 
     // Metal grain.
-    col += (hash(vUv * 419.0) - 0.5) * 0.07;
+    col += (hash(vUv * 419.0) - 0.5) * 0.06;
 
     gl_FragColor = vec4(col, a * uAlpha);
   }
@@ -285,16 +334,12 @@ function rasterizeMark(
     return canvas;
   }
 
-  const inset = MARK_TEX * 0.09;
-  const r = MARK_TEX * 0.09;
-  c.lineWidth = MARK_TEX * 0.02;
-  c.beginPath();
-  c.roundRect(inset, inset, MARK_TEX - inset * 2, MARK_TEX - inset * 2, r);
-  c.stroke();
-  c.font = `900 ${MARK_TEX * 0.3}px ${capsFamily}`;
+  // Bare letters, no ring — on the wheel the tiles overlap, and overlapping
+  // rings read as stray empty boxes (same reason the DOM fallback is bare).
+  c.font = `900 ${MARK_TEX * 0.36}px ${capsFamily}`;
   c.textAlign = "center";
   c.textBaseline = "middle";
-  c.fillText(tool.code ?? "?", MARK_TEX / 2, MARK_TEX * 0.545);
+  c.fillText(tool.code ?? "?", MARK_TEX / 2, MARK_TEX * 0.53);
   return canvas;
 }
 
@@ -329,7 +374,12 @@ export function LandingStage() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Reduced motion still gets the living background texture — it's a slow
+    // light field, not a vestibular hazard, and the owner wants the texture on
+    // every path. What that path skips is the particle hero and the WebGL
+    // marks (neither builds, so data-landing-gl never flips and the static
+    // fallbacks stay the page).
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const retryLater = () => {
       if (generation === 0 || rebuildsRef.current >= REBUILD_LIMIT) return;
@@ -377,6 +427,7 @@ export function LandingStage() {
         uAspect: { value: 1 },
         uBg: { value: BG_RGB },
         uTint: { value: LIGHT_RGB },
+        uEmber: { value: EMBER_RGB },
       },
     });
     const bgMesh = new Mesh(gl, { geometry: new Triangle(gl), program: bgProgram });
@@ -386,8 +437,10 @@ export function LandingStage() {
     let particleProgram: Program | null = null;
 
     /* Metal marks — built once fonts are in (the crafted tiles need them). */
-    type MarkPass = { el: HTMLElement; mesh: Mesh; program: Program };
+    type MarkPass = { el: HTMLElement; idx: number; mesh: Mesh; program: Program };
     let markPasses: MarkPass[] = [];
+    let seamEl: HTMLElement | null = null;
+    let wheelStageEl: HTMLElement | null = null;
 
     const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
     const handleMouseMove = (e: MouseEvent) => {
@@ -502,6 +555,7 @@ export function LandingStage() {
           uDpr: { value: Math.min(window.devicePixelRatio || 1, 1.25) },
           uImgScale: { value: size.imgScale },
           uMarkScale: { value: size.markScale },
+          uMarkPos: { value: [0, 0] },
           uMouse: { value: [0, 0] },
           uAspect: { value: size.w / size.h },
           uMarkTint: { value: tint },
@@ -539,13 +593,16 @@ export function LandingStage() {
             uSize: { value: [1, 1] },
             uSweep: { value: 0 },
             uAlpha: { value: 0 },
+            uTime: { value: 0 },
             uTint: { value: tool.tint },
           },
           transparent: true,
           depthTest: false,
         });
-        markPasses.push({ el, mesh: new Mesh(gl, { geometry: quad, program }), program });
+        if (idx === 0) seamEl = el;
+        markPasses.push({ el, idx, mesh: new Mesh(gl, { geometry: quad, program }), program });
       });
+      wheelStageEl = document.querySelector<HTMLElement>("[data-wheel-stage]");
 
       // The morph needs the first tool's silhouette as its target set. It
       // arrives here (fonts + raster ready), so (re)point existing particles.
@@ -569,34 +626,36 @@ export function LandingStage() {
     // resolves into the mark as soon as fonts are ready — in practice fonts
     // land well before anyone scrolls).
     const img = new Image();
-    img.src = "/landing/hero-particles.jpg";
-    void img
-      .decode()
-      .then(() => {
-        if (cancelled) return;
-        const provisional: Array<[number, number]> = [];
-        for (let i = 0; i < 400; i++) {
-          provisional.push([(Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7]);
-        }
-        buildParticles(img, provisional);
-        return document.fonts.ready;
-      })
-      .then(() => {
-        if (cancelled) return;
-        // The caps face's real family name, resolved through the CSS variable
-        // next/font generates — canvas font strings can't use var().
-        const probe = document.createElement("span");
-        probe.style.fontFamily = "var(--font-caps, var(--font-neue-black))";
-        probe.style.position = "absolute";
-        probe.style.visibility = "hidden";
-        document.body.appendChild(probe);
-        const family = getComputedStyle(probe).fontFamily || "sans-serif";
-        probe.remove();
-        buildMarks(family);
-      })
-      .catch(() => {
-        // No sampler image → the static hero stays; background keeps running.
-      });
+    if (!reducedMotion) {
+      img.src = "/landing/hero-particles.jpg";
+      void img
+        .decode()
+        .then(() => {
+          if (cancelled) return;
+          const provisional: Array<[number, number]> = [];
+          for (let i = 0; i < 400; i++) {
+            provisional.push([(Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7]);
+          }
+          buildParticles(img, provisional);
+          return document.fonts.ready;
+        })
+        .then(() => {
+          if (cancelled) return;
+          // The caps face's real family name, resolved through the CSS variable
+          // next/font generates — canvas font strings can't use var().
+          const probe = document.createElement("span");
+          probe.style.fontFamily = "var(--font-caps, var(--font-neue-black))";
+          probe.style.position = "absolute";
+          probe.style.visibility = "hidden";
+          document.body.appendChild(probe);
+          const family = getComputedStyle(probe).fontFamily || "sans-serif";
+          probe.remove();
+          buildMarks(family);
+        })
+        .catch(() => {
+          // No sampler image → the static hero stays; background keeps running.
+        });
+    }
 
     /* Render loop. */
     let raf = 0;
@@ -615,10 +674,35 @@ export function LandingStage() {
       mouse.x += (mouse.tx - mouse.x) * 0.07;
       mouse.y += (mouse.ty - mouse.y) * 0.07;
 
-      const heroLive = particleMesh !== null && stageState.heroAlpha > 0.004;
+      // The seam handoff. As the anchor rises from the viewport's bottom edge
+      // toward center, the formed swarm glides from its centered hold onto the
+      // anchor's actual rect, and only then crossfades into the metal face —
+      // one object changing material, never two marks on screen. Before the
+      // marks build there is no anchor; the scripted heroAlpha carries the
+      // fade instead.
+      let pAlpha = stageState.heroAlpha;
+      let solidMul = 1;
+      if (seamEl && particleMesh && particleProgram) {
+        const rect = seamEl.getBoundingClientRect();
+        const t = Math.min(Math.max((1 - (rect.top + rect.height / 2) / size.h) / 0.5, 0), 1);
+        let glide = Math.min(t / 0.7, 1);
+        glide = glide * glide * (3 - 2 * glide);
+        solidMul = Math.min(Math.max((t - 0.55) / 0.35, 0), 1);
+        pAlpha = 1 - solidMul;
+        const cx = ((rect.left + rect.width / 2) / size.w) * 2 - 1;
+        const cy = -(((rect.top + rect.height / 2) / size.h) * 2 - 1);
+        particleProgram.uniforms.uMarkPos.value = [cx * glide, cy * glide];
+        particleProgram.uniforms.uMarkScale.value = [
+          (rect.width / size.w) * 2,
+          (rect.height / size.h) * 2,
+        ];
+      }
+      const heroLive = particleMesh !== null && pAlpha > 0.004;
 
-      // Which marks are near the viewport this frame, and where.
-      const liveMarks: MarkPass[] = [];
+      // Which marks are near the viewport this frame, and where. The seam mark
+      // renders free; the wheel marks are clipped to the stage below.
+      const seamMarks: MarkPass[] = [];
+      const wheelMarks: MarkPass[] = [];
       for (const pass of markPasses) {
         const rect = pass.el.getBoundingClientRect();
         if (rect.bottom < -size.h * 0.2 || rect.top > size.h * 1.2) continue;
@@ -631,14 +715,19 @@ export function LandingStage() {
           1,
         );
         pass.program.uniforms.uSweep.value = sweep;
-        pass.program.uniforms.uAlpha.value =
-          Math.min(sweep / 0.08, 1) * Math.min((1 - sweep) / 0.08, 1);
-        liveMarks.push(pass);
+        pass.program.uniforms.uTime.value = time;
+        const edge = Math.min(sweep / 0.08, 1) * Math.min((1 - sweep) / 0.08, 1);
+        // Wheel marks also carry the mouth-proximity fade the wheel scrub
+        // writes onto their elements; the seam mark carries the crossfade.
+        const domA = pass.el.style.opacity === "" ? 1 : Number(pass.el.style.opacity);
+        pass.program.uniforms.uAlpha.value = pass.idx === 0 ? edge * solidMul : edge * domA;
+        if (pass.program.uniforms.uAlpha.value <= 0.004) continue;
+        (pass.idx === 0 ? seamMarks : wheelMarks).push(pass);
       }
 
       // Background-only stretches render at half rate; nobody can tell on a
       // grain field, and it halves the idle GPU cost.
-      if (!heroLive && liveMarks.length === 0) {
+      if (!heroLive && seamMarks.length === 0 && wheelMarks.length === 0) {
         bgOnlySkip = !bgOnlySkip;
         if (bgOnlySkip) return;
       }
@@ -647,14 +736,39 @@ export function LandingStage() {
       bgProgram.uniforms.uMouse.value = [mouse.x, mouse.y];
       renderer.render({ scene: bgMesh, clear: true });
 
-      for (const pass of liveMarks) {
+      for (const pass of seamMarks) {
         renderer.render({ scene: pass.mesh, clear: false });
+      }
+
+      // The stage clips its overflow in the DOM, but the canvas is one fixed
+      // layer — scissor stands in for the stage's overflow:hidden so marks
+      // riding the circle never poke outside it.
+      if (wheelMarks.length > 0 && wheelStageEl) {
+        const sr = wheelStageEl.getBoundingClientRect();
+        const x0 = Math.max(sr.left, 0);
+        const y0 = Math.max(sr.top, 0);
+        const x1 = Math.min(sr.right, size.w);
+        const y1 = Math.min(sr.bottom, size.h);
+        if (x1 > x0 && y1 > y0) {
+          const dpr = renderer.dpr;
+          gl.enable(gl.SCISSOR_TEST);
+          gl.scissor(
+            Math.round(x0 * dpr),
+            Math.round((size.h - y1) * dpr),
+            Math.round((x1 - x0) * dpr),
+            Math.round((y1 - y0) * dpr),
+          );
+          for (const pass of wheelMarks) {
+            renderer.render({ scene: pass.mesh, clear: false });
+          }
+          gl.disable(gl.SCISSOR_TEST);
+        }
       }
 
       if (heroLive && particleMesh && particleProgram) {
         particleProgram.uniforms.uTime.value = time;
         particleProgram.uniforms.uMorph.value = stageState.morph;
-        particleProgram.uniforms.uAlpha.value = stageState.heroAlpha;
+        particleProgram.uniforms.uAlpha.value = pAlpha;
         particleProgram.uniforms.uMouse.value = [mouse.x, mouse.y];
         renderer.render({ scene: particleMesh, clear: false });
       }

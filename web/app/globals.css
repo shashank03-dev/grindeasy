@@ -141,29 +141,32 @@
    near-black, silver text, steel light, one warm CRT ember. Scoped to
    [data-landing] so the leaderboard keeps the green terminal theme. */
 [data-landing] {
-  --background: oklch(0.132 0.01 250);
-  --foreground: oklch(0.93 0.005 240);
-  --card: oklch(0.168 0.012 250);
-  --card-foreground: oklch(0.93 0.005 240);
-  --popover: oklch(0.168 0.012 250);
-  --popover-foreground: oklch(0.93 0.005 240);
-  /* The spotlight: cold steel light. Carries CTAs, focus, and the shader's
-     light pool. */
-  --primary: oklch(0.845 0.032 240);
-  --primary-foreground: oklch(0.15 0.015 250);
-  --secondary: oklch(0.205 0.012 250);
-  --secondary-foreground: oklch(0.93 0.005 240);
-  --muted: oklch(0.205 0.012 250);
+  /* Graded teal-and-ember, not neutral grey: the blacks carry real blue
+     chroma (a cinema shadow, not a dead fill) and the light is ice, not
+     silver. stage.tsx duplicates --background and --primary as BG_RGB /
+     LIGHT_RGB — change one, change both. */
+  --background: oklch(0.128 0.016 252);
+  --foreground: oklch(0.94 0.008 240);
+  --card: oklch(0.165 0.018 250);
+  --card-foreground: oklch(0.94 0.008 240);
+  --popover: oklch(0.165 0.018 250);
+  --popover-foreground: oklch(0.94 0.008 240);
+  /* The spotlight: ice light with actual color in it. Carries CTAs, focus,
+     and the shader's light pool. */
+  --primary: oklch(0.84 0.07 230);
+  --primary-foreground: oklch(0.15 0.02 250);
+  --secondary: oklch(0.2 0.018 250);
+  --secondary-foreground: oklch(0.94 0.008 240);
+  --muted: oklch(0.2 0.018 250);
   /* Lifted from 0.63 — body copy on the old theme failed 4.5:1. */
-  --muted-foreground: oklch(0.73 0.01 245);
-  --accent: oklch(0.205 0.012 250);
-  --accent-foreground: oklch(0.93 0.005 240);
-  --border: oklch(0.88 0.015 245 / 12%);
-  --input: oklch(0.88 0.015 245 / 16%);
-  --ring: oklch(0.845 0.032 240 / 55%);
-  /* The CRT glow on the figure's screen. Micro-accent only: the live dot,
-     never surfaces. */
-  --ember: oklch(0.72 0.13 55);
+  --muted-foreground: oklch(0.74 0.014 242);
+  --accent: oklch(0.2 0.018 250);
+  --accent-foreground: oklch(0.94 0.008 240);
+  --border: oklch(0.88 0.02 240 / 12%);
+  --input: oklch(0.88 0.02 240 / 16%);
+  --ring: oklch(0.84 0.07 230 / 55%);
+  /* The CRT glow on the figure's screen — the warm half of the grade. */
+  --ember: oklch(0.74 0.15 58);
   background: var(--background);
   color: var(--foreground);
 }
@@ -267,24 +270,261 @@
 
   /* Metallic display text. A silver ramp clipped to the glyphs, tinted per
      tool through --tint; --shine is the specular's position and is scrubbed
-     by ScrollTrigger, so the shine travels as the name crosses the viewport. */
+     by ScrollTrigger, so the shine travels as the name crosses the viewport.
+     The ramp runs deep shadow → tint → white and back, so the metal reads
+     heavy, not a thin wash. */
   .metal-text {
     --shine: 0.5;
     --tint: #cdd4dc;
-    background-image: linear-gradient(
-      100deg,
-      color-mix(in oklch, var(--tint) 45%, #23262c) 0%,
-      color-mix(in oklch, var(--tint) 72%, #ffffff) calc(var(--shine) * 100% - 16%),
-      #ffffff calc(var(--shine) * 100%),
-      color-mix(in oklch, var(--tint) 60%, #363b42) calc(var(--shine) * 100% + 16%),
-      color-mix(in oklch, var(--tint) 48%, #1e2126) 100%
-    );
+    /* Two layers, both clipped to the glyphs. The top one is a soft tinted
+       band that drifts on its own clock, so the metal keeps living between
+       scroll shines; the ramp beneath is the struck surface — deep cold
+       shadow, the tool's own tint carrying the mid, a hard white specular.
+       More tint in every stop than before: the section reads as colored
+       metal, not grey with a label. */
+    background-image:
+      linear-gradient(
+        115deg,
+        transparent 22%,
+        color-mix(in oklch, var(--tint) 36%, transparent) 42%,
+        transparent 62%
+      ),
+      linear-gradient(
+        100deg,
+        color-mix(in oklch, var(--tint) 32%, #0b0e14) 0%,
+        color-mix(in oklch, var(--tint) 60%, #232935) calc(var(--shine) * 100% - 34%),
+        color-mix(in oklch, var(--tint) 88%, #e9eff7) calc(var(--shine) * 100% - 10%),
+        #ffffff calc(var(--shine) * 100%),
+        color-mix(in oklch, var(--tint) 82%, #dfe9f4) calc(var(--shine) * 100% + 8%),
+        color-mix(in oklch, var(--tint) 56%, #1c212b) calc(var(--shine) * 100% + 30%),
+        color-mix(in oklch, var(--tint) 40%, #10141c) 100%
+      );
+    background-size: 260% 100%, 100% 100%;
+    background-position: -80% 0, 0 0;
+    animation: metal-drift 9s ease-in-out infinite alternate;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     /* The glow behind the shine: a shadow of the glyphs in the tool's tint.
-       Shadows render behind transparent text, so this reads as emission. */
-    text-shadow: 0 0 32px color-mix(in oklch, var(--tint) 22%, transparent);
+       Shadows render behind transparent text, so this reads as emission.
+       Routed through --metal-glow so variants can put it out — a literal
+       text-shadow:none override gets eaten by the color-mix rule splitting. */
+    --metal-glow: color-mix(in oklch, var(--tint) 38%, transparent);
+    text-shadow: 0 0 44px var(--metal-glow);
+  }
+  /* The hero wears the same metal but lit for readability: over a photograph
+     the ramp's floor can't drop to near-black, so every dark stop is lifted
+     to a mid steel. No emission glow either — at hero scale the overlapping
+     shadows fuse into a grey slab behind the lines. */
+  .metal-bright {
+    --metal-glow: transparent;
+    background-image:
+      linear-gradient(
+        115deg,
+        transparent 22%,
+        color-mix(in oklch, var(--tint) 30%, transparent) 42%,
+        transparent 62%
+      ),
+      linear-gradient(
+        100deg,
+        color-mix(in oklch, var(--tint) 72%, #6a7482) 0%,
+        color-mix(in oklch, var(--tint) 84%, #97a2b1) calc(var(--shine) * 100% - 34%),
+        color-mix(in oklch, var(--tint) 92%, #e9eff7) calc(var(--shine) * 100% - 10%),
+        #ffffff calc(var(--shine) * 100%),
+        color-mix(in oklch, var(--tint) 90%, #dfe9f4) calc(var(--shine) * 100% + 8%),
+        color-mix(in oklch, var(--tint) 78%, #7d8896) calc(var(--shine) * 100% + 30%),
+        color-mix(in oklch, var(--tint) 70%, #5f6975) 100%
+      );
+  }
+  @keyframes metal-drift {
+    from {
+      background-position: -80% 0, 0 0;
+    }
+    to {
+      background-position: 180% 0, 0 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .metal-text {
+      animation: none;
+    }
+  }
+
+  /* ── The tools wheel ─────────────────────────────────────────────────────
+     valeran.eu's MWG040 mechanics, verified against its live CSS/JS: a 400vh
+     pin-height whose 100vh stage is pinned; two 80vw circles hang off either
+     side of center (labels' circle at right: 52%, marks' at left: 52%); each
+     item is the full circle box rotated i × 14.5°, its child counter-rotated
+     to stay level, and scroll scrubs the whole circle from just before the
+     first item enters to just after the last one leaves. */
+  .wheel-pin {
+    height: 320vh;
+  }
+  .wheel-stage {
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .wheel-circle {
+    position: absolute;
+    top: 50%;
+    width: 80vw;
+    height: 80vw;
+    transform: translate(0, -50%);
+  }
+  .wheel-circle-left {
+    right: 52%;
+  }
+  .wheel-circle-right {
+    left: 52%;
+  }
+  .wheel-item {
+    position: absolute;
+    inset: 0;
+  }
+  .wheel-label {
+    position: absolute;
+    top: 100%;
+    right: 50%;
+    transform: translate(0, -50%);
+    transform-origin: 100%;
+    white-space: nowrap;
+    font-size: 4.6vw;
+    line-height: 1;
+  }
+  .wheel-media {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 15vw;
+    aspect-ratio: 1;
+    transform: translate(0, -50%);
+    transform-origin: 0;
+    filter: drop-shadow(0 4px 24px rgb(0 0 0 / 0.4));
+  }
+  @media (max-width: 991px) {
+    .wheel-pin {
+      height: 280vh;
+    }
+    .wheel-circle {
+      width: 160vw;
+      height: 160vw;
+    }
+    .wheel-label {
+      font-size: 8vw;
+    }
+    .wheel-media {
+      width: 30vw;
+    }
+  }
+
+  /* ── The light pool ──────────────────────────────────────────────────────
+     The texture that rides the whole page, opaque sections included: a slow
+     drifting bloom. Blended screen so it only ever adds light; the .noise
+     grain above it supplies the tooth. Deliberately alive under reduced
+     motion too — the owner wants the texture everywhere. (No cursor
+     follower: a bare tracking circle over opaque sections read as a smudge,
+     and the owner cut it.) */
+  .light-pool {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  .light-pool::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    background:
+      radial-gradient(
+        46% 38% at 30% 34%,
+        color-mix(in oklch, var(--primary) 11%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        40% 34% at 74% 72%,
+        color-mix(in oklch, var(--ember) 7%, transparent),
+        transparent 70%
+      );
+    animation: pool-drift 26s ease-in-out infinite alternate;
+  }
+  @keyframes pool-drift {
+    from {
+      transform: translate3d(-4%, -2%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(4%, 3%, 0) scale(1.12);
+    }
+  }
+
+
+  /* ── Finale in-fall ──────────────────────────────────────────────────────
+     The finale's backdrop is a canvas (finale-infall.tsx): the hero's dust
+     streaming into the presence card. This bloom is the light the dust lands
+     in — and the whole backdrop when the canvas doesn't run (reduced motion,
+     JS off). Centred on the card, sized in vmin so it outgrows the card
+     without dominating a phone; the finale block is overflow-hidden. */
+  .infall-bloom {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(78vmin, 620px);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 9999px;
+    pointer-events: none;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklch, var(--primary) 9%, transparent),
+      transparent 72%
+    );
+  }
+
+  /* ── Scroll cue ──────────────────────────────────────────────────────────
+     The hairline above the hero's scroll line, with a dot that keeps falling:
+     the page's one standing invitation to move. Fades at both ends of the
+     travel so the loop never reads as a tick. */
+  .cue-line {
+    position: relative;
+    width: 1px;
+    height: 56px;
+    background: color-mix(in oklch, var(--foreground) 20%, transparent);
+  }
+  .cue-line::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    border-radius: 9999px;
+    background: var(--primary);
+    box-shadow: 0 0 6px color-mix(in oklch, var(--primary) 70%, transparent);
+    animation: cue-fall 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  @keyframes cue-fall {
+    0% {
+      transform: translateY(-3px);
+      opacity: 0;
+    }
+    14% {
+      opacity: 1;
+    }
+    76% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(53px);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cue-line::before {
+      animation: none;
+      opacity: 0;
+    }
   }
 
   /* Static fallbacks for the WebGL stage. While the stage is live it sets
@@ -294,6 +534,19 @@
   html[data-landing-gl="on"] [data-gl-fallback] {
     opacity: 0;
     transition: opacity 0.6s ease;
+  }
+
+  /* Cinematic frame over the hero: a radial vignette that pulls the eye to
+     the figure, plus a whisper of cold light settling from the top. Rides
+     the same scroll fade as the scrim. */
+  .hero-grade {
+    background:
+      radial-gradient(
+        120% 90% at 50% 34%,
+        transparent 52%,
+        oklch(0.06 0.014 252 / 0.55) 100%
+      ),
+      linear-gradient(180deg, oklch(0.4 0.03 235 / 0.1), transparent 26%);
   }
 
   /* Text-contrast scrim over the hero image's lower half. */
@@ -435,5 +688,125 @@
     .signin-btn__spinner {
       animation: none;
     }
+  }
+}
+
+/* ── Aurora ──────────────────────────────────────────────────────────────
+   Kept top-level (outside @layer components) on purpose: Tailwind v4
+   tree-shakes @layer rules by usage detection and was dropping these, so
+   the curtain lives unlayered where it's always emitted.
+   The wibify-style curtain of light shafts. Lifted out of the buried z-0
+   WebGL background — where the opaque sections stacked over it hid the
+   beams entirely — into its own fixed, screen-blended layer that rides the
+   whole page, opaque sections included, exactly like .light-pool. Screen
+   blend only ever adds light, so section text stays legible. The cursor
+   leans the whole curtain a few px through --aurora-x/y (set in
+   landing.tsx); each beam also sways on its own slow loop, so the curtain
+   breathes rather than standing still. Sits below the header (z-50) and
+   the light-pool bloom (z-60), above all scrolled content. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  transform: translate3d(var(--aurora-x, 0px), var(--aurora-y, 0px), 0);
+}
+.aurora__beam {
+  position: absolute;
+  top: -25%;
+  height: 150%;
+  filter: blur(46px);
+  will-change: transform, opacity;
+}
+.aurora__beam--1 {
+  left: 0%;
+  width: 26vw;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--primary) 36%, transparent),
+    transparent 70%
+  );
+  animation: aurora-1 23s ease-in-out infinite;
+}
+.aurora__beam--2 {
+  left: 28%;
+  width: 18vw;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--primary) 26%, transparent),
+    transparent 66%
+  );
+  animation: aurora-2 29s ease-in-out infinite;
+}
+.aurora__beam--3 {
+  left: 52%;
+  width: 32vw;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--primary) 32%, transparent),
+    transparent 72%
+  );
+  animation: aurora-3 26s ease-in-out infinite;
+}
+.aurora__beam--4 {
+  left: 78%;
+  width: 22vw;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--ember) 22%, transparent),
+    transparent 64%
+  );
+  animation: aurora-4 32s ease-in-out infinite;
+}
+@keyframes aurora-1 {
+  0%,
+  100% {
+    transform: translateX(-4%) skewX(-7deg);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(5%) skewX(-3deg);
+    opacity: 0.8;
+  }
+}
+@keyframes aurora-2 {
+  0%,
+  100% {
+    transform: translateX(3%) skewX(5deg);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateX(-4%) skewX(2deg);
+    opacity: 0.7;
+  }
+}
+@keyframes aurora-3 {
+  0%,
+  100% {
+    transform: translateX(-3%) skewX(-9deg);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateX(4%) skewX(-5deg);
+    opacity: 0.72;
+  }
+}
+@keyframes aurora-4 {
+  0%,
+  100% {
+    transform: translateX(4%) skewX(6deg);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translateX(-3%) skewX(3deg);
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora__beam {
+    animation: none;
+    opacity: 0.5;
   }
 }
