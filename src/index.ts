@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { loadConfig, dataDir, configPath, updateConfig } from "./config.js";
 import { openBrowser, pair } from "./pair.js";
 import { detectPlan, planBadge } from "./plan.js";
@@ -22,6 +23,10 @@ import { runToolsCommand } from "./toolsCli.js";
 import * as theme from "./theme.js";
 import { Tracker } from "./tracker.js";
 import type { Plan, TierResult } from "./types.js";
+
+// package.json ships in the npm tarball alongside dist/, so it resolves both
+// from dist/index.js at runtime and from src/index.ts under tsx in dev.
+const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
 
 /**
  * How long a session survives a lull in tool activity. Tool logs are bursty —
@@ -119,7 +124,35 @@ function printStartup(opts: {
   console.log("\n" + theme.panel("grindeasy running", lines));
 }
 
+function printHelp(): void {
+  const label = (s: string) => theme.fg(s.padEnd(15));
+  const lines = [
+    theme.dim("Usage: grindeasy [command]"),
+    "",
+    `${label("(no command)")}${theme.dimmer("start tracking")}`,
+    `${label("login")}${theme.dimmer("join the leaderboard")}`,
+    `${label("service")}${theme.dimmer("install | uninstall | status")}`,
+    `${label("tools")}${theme.dimmer("list | scan | add | remove")}`,
+    "",
+    `${label("-h, --help")}${theme.dimmer("show this")}`,
+    `${label("-v, --version")}${theme.dimmer("print version")}`,
+  ];
+  console.log(theme.banner() + "\n" + theme.panel("commands", lines) + "\n");
+}
+
 async function main(): Promise<void> {
+  const cmd = process.argv[2];
+
+  if (cmd === "-h" || cmd === "--help") {
+    printHelp();
+    return;
+  }
+
+  if (cmd === "-v" || cmd === "--version") {
+    console.log(pkg.version);
+    return;
+  }
+
   if (process.argv[2] === "login") {
     await login();
     return;
@@ -142,6 +175,14 @@ async function main(): Promise<void> {
   if (process.argv[2] === "tools") {
     await runToolsCommand(process.argv[3]);
     return;
+  }
+
+  // Anything left that isn't empty is a typo, not the no-arg tracker start.
+  // Guard it so `grindeasy halp` prints usage instead of silently tracking.
+  if (cmd !== undefined) {
+    console.error(`Unknown command: ${cmd}`);
+    console.error("Run `grindeasy --help` for usage.");
+    process.exit(1);
   }
 
   let { config } = loadConfig();

@@ -78,6 +78,9 @@ it stays local.
 
 The dashboard is at **http://localhost:4599**.
 
+Run `grindeasy --help` for the full command list, or `grindeasy --version` to
+check which release you're on.
+
 ## Keep it running
 
 `npx grindeasy` only counts while that terminal stays open. To keep tracking
