@@ -218,7 +218,7 @@ export function Landing() {
           }
 
           // Finale: the Discord card assembles and its timer runs up as it
-          // crosses the viewport — the twelve tools funnel into this one card.
+          // crosses the viewport — the thirteen tools funnel into this one card.
           const clock = { t: 0 };
           const timerEl = document.querySelector<HTMLElement>("[data-act-card] [data-card-timer]");
           if (timerEl) timerEl.textContent = formatElapsed(0);
@@ -754,7 +754,7 @@ export function Landing() {
                   data-reveal
                   className="translate-y-6 font-caps text-[11px] uppercase tracking-[0.34em] text-muted-foreground opacity-0"
                 >
-                  01 / The twelve it watches
+                  01 / The thirteen it watches
                 </p>
                 <div
                   data-metal-anchor="0"
@@ -802,7 +802,7 @@ export function Landing() {
                 </div>
               </div>
 
-              {/* Finale: twelve tools, one card. */}
+              {/* Finale: thirteen tools, one card. */}
               <div
                 data-finale
                 className="relative flex min-h-svh flex-col items-center justify-center gap-12 overflow-hidden px-6 py-24 text-center"
