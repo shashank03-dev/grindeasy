@@ -7,6 +7,8 @@ npm package (the local agent); website-only changes are noted as such.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-17
+
 ### Added
 - Weekly per-tool breakdown: the dashboard's Weekly tab and the `grindeasy
   weekly` panel now list hours for each tool used in the last 7 days, not just
@@ -61,7 +63,8 @@ npm package (the local agent); website-only changes are noted as such.
 - Background service installer (systemd user unit, launchd agent, Windows
   per-user run entry) so tracking survives closing the terminal and reboots.
 
-[Unreleased]: https://github.com/shashank03-dev/grindeasy/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/shashank03-dev/grindeasy/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/shashank03-dev/grindeasy/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/shashank03-dev/grindeasy/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/shashank03-dev/grindeasy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/shashank03-dev/grindeasy/compare/v0.5.0...v0.5.1

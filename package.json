@@ -1,6 +1,6 @@
 {
   "name": "grindeasy",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Discord Rich Presence + personal tiers for AI coding tools. Auto-detects what you're actively coding with (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Aider, plus Zed, Continue, Copilot Chat, Cline and more), tracks your tier, and feeds a global leaderboard.",
   "type": "module",
   "bin": {
