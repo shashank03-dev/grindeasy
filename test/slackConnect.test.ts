@@ -93,6 +93,76 @@ describe("connectSlack", () => {
     expect(onPrompt).toHaveBeenCalledWith(START);
   });
 
+  it("rides out a transient poll failure rather than discarding the install", async () => {
+    // The user may already have authorized in Slack by now, so a blip must not
+    // throw away a webhook Slack has minted — retrying costs them a second install.
+    const outcomes: (SlackPollOutcome | "boom")[] = [
+      { status: "pending" },
+      "boom",
+      "boom",
+      { status: "pending" },
+      { status: "ready", ...WEBHOOK },
+    ];
+    let poll = 0;
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith("/api/slack/start")) return jsonResponse(START);
+      const next = outcomes[poll++]!;
+      if (next === "boom") return new Response("bad gateway", { status: 502 });
+      return jsonResponse(next);
+    });
+
+    const webhook = await connectSlack({
+      serverUrl: "https://board.example",
+      fetchFn: fetchFn as unknown as typeof fetch,
+      sleep: noSleep,
+    });
+
+    expect(webhook).toEqual(WEBHOOK);
+    expect(poll).toBe(5);
+  });
+
+  it("gives up once poll failures look sustained rather than transient", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) =>
+      String(url).endsWith("/api/slack/start")
+        ? jsonResponse(START)
+        : new Response("down", { status: 500 }),
+    );
+
+    await expect(
+      connectSlack({
+        serverUrl: "https://board.example",
+        fetchFn: fetchFn as unknown as typeof fetch,
+        sleep: noSleep,
+      }),
+    ).rejects.toThrow("HTTP 500");
+  });
+
+  it("resets the failure count after a success, so blips never accumulate", async () => {
+    // Four failures, a success, then four more must not trip the threshold of 5.
+    const script: ("boom" | SlackPollOutcome)[] = [
+      "boom", "boom", "boom", "boom",
+      { status: "pending" },
+      "boom", "boom", "boom", "boom",
+      { status: "ready", ...WEBHOOK },
+    ];
+    let poll = 0;
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith("/api/slack/start")) return jsonResponse(START);
+      const next = script[poll++]!;
+      if (next === "boom") return new Response("blip", { status: 503 });
+      return jsonResponse(next);
+    });
+
+    const webhook = await connectSlack({
+      serverUrl: "https://board.example",
+      fetchFn: fetchFn as unknown as typeof fetch,
+      sleep: noSleep,
+    });
+
+    expect(webhook).toEqual(WEBHOOK);
+    expect(poll).toBe(10);
+  });
+
   it("surfaces the server's reason when the install fails", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) =>
       String(url).endsWith("/api/slack/start")

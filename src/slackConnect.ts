@@ -73,6 +73,14 @@ export async function pollSlackOnce(
 }
 
 /**
+ * A poll loop that runs for ten minutes is long enough to catch a cold start or a
+ * blip, and by the time it is polling the user may already have authorized in
+ * Slack — so a single failed request must not discard a webhook Slack has already
+ * minted. Give up only once the failures look sustained rather than transient.
+ */
+const MAX_CONSECUTIVE_POLL_FAILURES = 5;
+
+/**
  * Run the full flow and return the webhook Slack minted. Resolves only once the
  * user finishes the install in a browser; throws when they cancel, when Slack
  * refuses, or when the link expires.
@@ -85,9 +93,19 @@ export async function connectSlack(opts: SlackConnectOptions): Promise<SlackWebh
   opts.onPrompt?.(start);
 
   const deadline = now() + start.expiresInS * 1000;
+  let failures = 0;
   while (now() < deadline) {
     await sleep(start.intervalS * 1000);
-    const outcome = await pollSlackOnce(opts, start.agentCode);
+
+    let outcome: SlackPollOutcome;
+    try {
+      outcome = await pollSlackOnce(opts, start.agentCode);
+      failures = 0;
+    } catch (err) {
+      if (++failures >= MAX_CONSECUTIVE_POLL_FAILURES) throw err;
+      continue;
+    }
+
     if (outcome.status === "ready") {
       return {
         webhookUrl: outcome.webhookUrl,

@@ -18,13 +18,23 @@ const SUCCESS = {
   body: "Return to your terminal — it'll pick this up within a few seconds and ask you to confirm the channel. You can close this tab.",
 };
 
+/**
+ * `error` is a URL parameter, so it can name an inherited property: plain
+ * `MESSAGES[error]` answers a truthy Function for `constructor` or `toString`,
+ * which slips past a `??` fallback and renders a blank page. Only own keys count.
+ */
+function messageFor(error: string | undefined): { title: string; body: string } {
+  if (!error) return SUCCESS;
+  return Object.hasOwn(MESSAGES, error) ? MESSAGES[error]! : MESSAGES.exchange!;
+}
+
 export default async function SlackConnectDonePage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const { title, body } = error ? (MESSAGES[error] ?? MESSAGES.exchange!) : SUCCESS;
+  const { title, body } = messageFor(error);
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-3 px-6">
