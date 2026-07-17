@@ -7,6 +7,14 @@ npm package (the local agent); website-only changes are noted as such.
 
 ## [Unreleased]
 
+### Added
+- Slack webhook setup now lives in the terminal: first-run onboarding offers to
+  post your weekly recap to Slack, and `grindeasy webhook` (no argument) runs the
+  same guided setup — paste the URL, it sends a test message, and only saves the
+  URL if that message lands. Existing installs get the offer once. Editing
+  `slackWebhookUrl` by hand still works. `grindeasy webhook test` re-posts to the
+  configured URL as before.
+
 ## [0.7.0] — 2026-07-17
 
 ### Added

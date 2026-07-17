@@ -22,6 +22,7 @@ import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
 import { renderWeeklyPanel } from "./weeklyCli.js";
 import { formatWeeklyRecap, planWeeklyRecapDelivery, postSlackMessage } from "./webhook.js";
+import { runWebhookSetup } from "./webhookSetup.js";
 import { SyncClient } from "./sync.js";
 import { computeTier } from "./tiers.js";
 import { trackedTools } from "./catalog.js";
@@ -145,7 +146,7 @@ function printHelp(): void {
     `${label("weekly")}${theme.dimmer("your last-7-days summary")}`,
     `${label("service")}${theme.dimmer("install | uninstall | status")}`,
     `${label("tools")}${theme.dimmer("list | scan | add | remove")}`,
-    `${label("webhook")}${theme.dimmer("test — post a recap to your Slack webhook")}`,
+    `${label("webhook")}${theme.dimmer("set up Slack weekly recaps (test to re-post)")}`,
     "",
     `${label("-h, --help")}${theme.dimmer("show this")}`,
     `${label("-v, --version")}${theme.dimmer("print version")}`,
@@ -188,17 +189,30 @@ function showLastWeekRecap(goalHours: number): void {
 }
 
 /**
- * `grindeasy webhook test` — post a message to the configured Slack webhook now,
- * so the user can confirm the URL works before trusting the weekly auto-post.
- * Sends last week's recap if there is one, else the rolling 7-day summary, else
- * a plain confirmation line when there's no activity to report yet.
+ * `grindeasy webhook` — interactively set up the Slack webhook (prompt for a URL,
+ * test-post, save). `grindeasy webhook test` — post a message to the already
+ * configured webhook so the user can confirm it still works: last week's recap if
+ * there is one, else the rolling 7-day summary, else a plain confirmation line.
  */
 async function runWebhookCommand(verb: string | undefined): Promise<void> {
+  const { config } = loadConfig();
+
+  if (verb === undefined) {
+    if (!process.stdin.isTTY) {
+      console.error(
+        `Run \`grindeasy webhook\` in a terminal to set up a Slack webhook, or set\n` +
+          `"slackWebhookUrl" by hand in ${configPath()}.`,
+      );
+      process.exit(1);
+    }
+    await runWebhookSetup(config);
+    return;
+  }
+
   if (verb !== "test") {
-    console.error("Usage: grindeasy webhook test");
+    console.error("Usage: grindeasy webhook [test]");
     process.exit(1);
   }
-  const { config } = loadConfig();
   if (!config.slackWebhookUrl) {
     console.error(
       `No slackWebhookUrl configured. Add a Slack Incoming Webhook URL under\n` +

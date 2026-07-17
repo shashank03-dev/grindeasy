@@ -48,7 +48,11 @@ describe("needsOnboarding", () => {
     // Without a token there is nothing left to ask: offerServiceInstall only runs
     // after a successful pairing. Reporting "pending" here would re-open the setup
     // ceremony on every run and never resolve, because nothing would answer it.
-    const declined = config({ askedToJoinBoard: true, accountToken: "" });
+    const declined = config({
+      askedToJoinBoard: true,
+      accountToken: "",
+      askedAboutWebhook: true,
+    });
     expect(needsOnboarding(declined, emptyHome())).toBe(false);
   });
 
@@ -57,6 +61,7 @@ describe("needsOnboarding", () => {
       accountToken: "t",
       askedToJoinBoard: true,
       askedToInstallService: true,
+      askedAboutWebhook: true,
     });
     expect(needsOnboarding(settled, emptyHome())).toBe(false);
   });

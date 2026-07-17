@@ -42,6 +42,11 @@ export interface Config {
    */
   askedToInstallService: boolean;
   /**
+   * Whether we've already offered to set up the Slack webhook in onboarding. Set
+   * once, same never-nag-twice rule as askedToJoinBoard.
+   */
+  askedAboutWebhook: boolean;
+  /**
    * Legacy tool overrides. Retained only for one-time migration into
    * `customTools` (see migrateCustomTools); new installs never set it.
    */
@@ -121,6 +126,7 @@ export const DEFAULT_CONFIG: Config = {
   activeSyncIntervalMs: MIN_SYNC_INTERVAL_MS,
   askedToJoinBoard: false,
   askedToInstallService: false,
+  askedAboutWebhook: false,
   tools: [],
   enabledToolIds: [],
   declinedToolIds: [],

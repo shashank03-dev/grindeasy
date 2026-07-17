@@ -5,6 +5,7 @@ import { coreTools, discoverExtended } from "./catalog.js";
 import { detectAll } from "./tools.js";
 import { openBrowser, pair } from "./pair.js";
 import { installService, isInstalled, platformSupported } from "./service.js";
+import { runWebhookSetup } from "./webhookSetup.js";
 import * as t from "./theme.js";
 import type { ToolDef } from "./types.js";
 
@@ -35,7 +36,10 @@ export function needsOnboarding(config: Config, home = homedir()): boolean {
     !config.askedToInstallService &&
     platformSupported(process.platform) &&
     !isInstalled(process.platform, home);
-  return leaderboardPending || servicePending;
+  // Offered once to everyone, including existing installs — the notifier shipped
+  // with no in-terminal setup, so a user who's never been asked gets one prompt.
+  const webhookPending = !config.askedAboutWebhook && !config.slackWebhookUrl;
+  return leaderboardPending || servicePending || webhookPending;
 }
 
 /** Extended tools present on disk that are neither already enabled nor declined. */
@@ -59,6 +63,7 @@ export async function runOnboarding(config: Config): Promise<OnboardingResult> {
   await offerDetectedTools(config);
   const accountToken = config.accountToken || (await offerLeaderboard(config));
   const serviceInstalled = accountToken ? await offerServiceInstall(config) : false;
+  await offerWebhook(config);
 
   if (!serviceInstalled) p.outro(t.dim("Tracking starts now — Ctrl-C to stop."));
   return { accountToken, serviceInstalled };
@@ -194,4 +199,27 @@ async function offerServiceInstall(config: Config): Promise<boolean> {
     return false;
   }
   return installService({ statsPort: config.statsPort });
+}
+
+/**
+ * Offer to post the weekly recap to Slack once. Set the asked flag before the
+ * question (never-nag-twice), and only run the URL setup on an explicit yes since
+ * most people won't have a webhook URL handy — they can start it later with
+ * `grindeasy webhook`.
+ */
+async function offerWebhook(config: Config): Promise<void> {
+  if (config.askedAboutWebhook || config.slackWebhookUrl) return;
+
+  updateConfig({ askedAboutWebhook: true });
+  config.askedAboutWebhook = true;
+
+  const yes = await p.confirm({
+    message: "Post your weekly recap to a Slack channel?",
+    initialValue: false,
+  });
+  if (p.isCancel(yes) || !yes) {
+    p.log.info(t.dim("Skipped — set it up any time with `grindeasy webhook`."));
+    return;
+  }
+  await runWebhookSetup(config);
 }
