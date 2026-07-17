@@ -24,6 +24,25 @@ describe("Tracker", () => {
     expect(s.activeMsByTool["a"]).toBe(10_000);
   });
 
+  it("accumulates per-day per-tool time in byTool", () => {
+    const t = new Tracker({ comboBucketMs: 1000, maxElapsedMs: 10_000 });
+    const s = freshStats(0);
+    t.recordTick(s, [act("claude-code", true), act("codex", true)], 1000, 5000);
+    t.recordTick(s, [act("claude-code", true)], 1200, 2000);
+    const day = s.daily[dayKey(1000)];
+    expect(day?.byTool["claude-code"]).toBe(7000);
+    expect(day?.byTool["codex"]).toBe(5000);
+  });
+
+  it("backfills byTool on a day loaded from a pre-0.5.3 file", () => {
+    const t = new Tracker({ maxElapsedMs: 10_000 });
+    const s = freshStats(0);
+    // Simulate an older daily record with no byTool field.
+    s.daily[dayKey(1000)] = { activeMs: 100, combos: 0 } as (typeof s.daily)[string];
+    t.recordTick(s, [act("aider", true)], 1000, 5000);
+    expect(s.daily[dayKey(1000)]?.byTool["aider"]).toBe(5000);
+  });
+
   it("does nothing when no tool is active", () => {
     const t = new Tracker();
     const s = freshStats(0);

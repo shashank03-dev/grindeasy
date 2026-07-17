@@ -47,10 +47,13 @@ export class Tracker {
     if (activeTools.length === 0) return stats;
 
     const day = dayKey(now);
-    const daily = (stats.daily[day] ??= { activeMs: 0, combos: 0 });
+    const daily = (stats.daily[day] ??= { activeMs: 0, combos: 0, byTool: {} });
+    // A day loaded from a pre-0.5.3 file has no byTool; give it one before use.
+    daily.byTool ??= {};
 
     for (const tool of activeTools) {
       stats.activeMsByTool[tool.id] = (stats.activeMsByTool[tool.id] ?? 0) + credit;
+      daily.byTool[tool.id] = (daily.byTool[tool.id] ?? 0) + credit;
     }
     daily.activeMs += credit;
     stats.lastActive = new Date(now).toISOString();

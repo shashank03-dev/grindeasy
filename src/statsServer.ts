@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import type { Snapshot } from "./snapshot.js";
+import type { DayHours, MonthlyWeek, Records, Snapshot, TopTool } from "./snapshot.js";
 
 const TOOL_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
@@ -21,6 +21,59 @@ function esc(s: string): string {
 function fmtHours(h: number): string {
   if (h < 1) return `${Math.round(h * 60)}m`;
   return `${h.toFixed(1)}h`;
+}
+
+/** Single-letter weekday initial for a YYYY-MM-DD key (Sun→S … Sat→S). */
+function weekdayLetter(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return "SMTWTFS"[new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1).getDay()] ?? "";
+}
+
+/** Shown in place of a delta when there's no prior week to compare against. */
+const FIRST_WEEK_TEXT = "first week tracked";
+
+function deltaText(delta: number): string {
+  if (Math.abs(delta) < 0.05) return "level with last week";
+  return `${delta > 0 ? "▲" : "▼"} ${fmtHours(Math.abs(delta))} vs last week`;
+}
+
+function topText(top: TopTool | null): string {
+  return top ? `${TOOL_LABELS[top.id] ?? top.id} · ${Math.round(top.sharePct)}%` : "—";
+}
+
+function goalText(activeHours: number, goalHours: number, goalPct: number): string {
+  return `${fmtHours(activeHours)} / ${fmtHours(goalHours)} · ${Math.round(goalPct)}%`;
+}
+
+function recordsText(r: Records): string {
+  return r.bestWeekHours > 0
+    ? `Best week ${fmtHours(r.bestWeekHours)} · Longest streak ${r.longestStreak}d`
+    : "No full week logged yet";
+}
+
+/** Seven day-height bars (server-side initial paint; the client rebuilds these). */
+function dayBars(perDay: DayHours[]): string {
+  const max = Math.max(0.0001, ...perDay.map((d) => d.hours));
+  return perDay
+    .map((d) => {
+      const pct = d.hours > 0 ? Math.max(6, Math.round((d.hours / max) * 100)) : 2;
+      return `<div class="daybar"><i style="height:${pct}%"></i><span>${weekdayLetter(d.day)}</span></div>`;
+    })
+    .join("");
+}
+
+/** Four labelled week bars for the monthly trend. */
+function monthRows(monthly: MonthlyWeek[]): string {
+  const max = Math.max(0.0001, ...monthly.map((w) => w.hours));
+  return monthly
+    .map((w) => {
+      const pct = w.hours > 0 ? Math.max(3, Math.round((w.hours / max) * 100)) : 0;
+      const tool = w.mostUsedToolId ? TOOL_LABELS[w.mostUsedToolId] ?? w.mostUsedToolId : "—";
+      return `<div class="mrow"><span class="mlabel">${esc(w.label)}</span><div class="mbar"><i style="width:${pct}%"></i></div><b>${fmtHours(
+        w.hours,
+      )}</b><span class="mtool">${esc(tool)}</span></div>`;
+    })
+    .join("");
 }
 
 function activeLabelOf(s: Snapshot): string {
@@ -63,6 +116,62 @@ function makeRow(label, value, muted) {
   el.append(a, b); return el;
 }
 function set(id, v) { const n = document.getElementById(id); if (n) n.textContent = v; }
+function label(id) { return TOOL_LABELS[id] || id; }
+function weekdayLetter(key) {
+  const p = key.split("-"); const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return "SMTWTFS"[d.getDay()] || "";
+}
+function deltaText(delta) {
+  if (Math.abs(delta) < 0.05) return "level with last week";
+  return (delta > 0 ? "▲ " : "▼ ") + fmtHours(Math.abs(delta)) + " vs last week";
+}
+function topText(top) { return top ? label(top.id) + " · " + Math.round(top.sharePct) + "%" : "—"; }
+function applyWeekly(w) {
+  set("wHours", fmtHours(w.activeHours));
+  set("wDelta", w.isFirstWeek ? ${JSON.stringify(FIRST_WEEK_TEXT)} : deltaText(w.deltaHours));
+  set("wAvg", fmtHours(w.avgHoursPerDay) + "/day");
+  set("wDays", w.activeDays + " of 7 days");
+  set("wBest", w.bestDay ? fmtHours(w.bestDay.hours) : "—");
+  set("wTop", topText(w.mostUsedTool));
+  const bars = document.getElementById("wBars");
+  if (bars) {
+    const max = Math.max.apply(null, w.perDay.map(function (d) { return d.hours; }).concat([0.0001]));
+    bars.replaceChildren.apply(bars, w.perDay.map(function (d) {
+      const col = document.createElement("div"); col.className = "daybar";
+      const i = document.createElement("i");
+      i.style.height = (d.hours > 0 ? Math.max(6, Math.round(d.hours / max * 100)) : 2) + "%";
+      const s = document.createElement("span"); s.textContent = weekdayLetter(d.day);
+      col.append(i, s); return col;
+    }));
+  }
+  const goal = document.getElementById("wGoal");
+  if (goal) {
+    if (w.goalPct === null) { goal.style.display = "none"; }
+    else {
+      goal.style.display = "";
+      const gf = document.getElementById("wGoalFill");
+      if (gf) gf.style.width = Math.min(100, w.goalPct).toFixed(0) + "%";
+      set("wGoalText", fmtHours(w.activeHours) + " / " + fmtHours(w.goalHours) + " · " + Math.round(w.goalPct) + "%");
+    }
+  }
+}
+function applyMonthly(m) {
+  const box = document.getElementById("mRows");
+  if (!box) return;
+  const max = Math.max.apply(null, m.map(function (w) { return w.hours; }).concat([0.0001]));
+  box.replaceChildren.apply(box, m.map(function (w) {
+    const row = document.createElement("div"); row.className = "mrow";
+    const lab = document.createElement("span"); lab.className = "mlabel"; lab.textContent = w.label;
+    const bar = document.createElement("div"); bar.className = "mbar";
+    const i = document.createElement("i");
+    i.style.width = (w.hours > 0 ? Math.max(3, Math.round(w.hours / max * 100)) : 0) + "%";
+    bar.append(i);
+    const b = document.createElement("b"); b.textContent = fmtHours(w.hours);
+    const tool = document.createElement("span"); tool.className = "mtool";
+    tool.textContent = w.mostUsedToolId ? label(w.mostUsedToolId) : "—";
+    row.append(lab, bar, b, tool); return row;
+  }));
+}
 function apply(s) {
   const active = s.activeNow.length > 0;
   const dot = document.querySelector(".brand .dot");
@@ -76,6 +185,9 @@ function apply(s) {
   set("statCombos", String(s.combos));
   set("statStreak", s.streakDays + "🔥");
   set("foot", syncText(s));
+  set("wRecords", s.records.bestWeekHours > 0
+    ? "Best week " + fmtHours(s.records.bestWeekHours) + " · Longest streak " + s.records.longestStreak + "d"
+    : "No full week logged yet");
   const bar = document.getElementById("barFill");
   if (bar) bar.style.width = s.progressPct.toFixed(1) + "%";
   const chips = document.getElementById("chips");
@@ -88,13 +200,26 @@ function apply(s) {
   if (rows) {
     if (s.perTool.length) {
       rows.replaceChildren.apply(rows, s.perTool.map(function (t) {
-        return makeRow(TOOL_LABELS[t.id] || t.id, fmtHours(t.hours), false);
+        return makeRow(label(t.id), fmtHours(t.hours), false);
       }));
     } else {
       rows.replaceChildren(makeRow("No activity yet — start coding", "0m", true));
     }
   }
+  applyWeekly(s.weekly);
+  applyMonthly(s.monthly);
 }
+function showView(v) {
+  ["weekly", "alltime", "monthly"].forEach(function (name) {
+    const view = document.getElementById("view-" + name);
+    if (view) view.classList.toggle("active", name === v);
+    const btn = document.querySelector('.tab[data-view="' + name + '"]');
+    if (btn) btn.classList.toggle("on", name === v);
+  });
+}
+document.querySelectorAll(".tab").forEach(function (btn) {
+  btn.addEventListener("click", function () { showView(btn.getAttribute("data-view")); });
+});
 async function tick() {
   try {
     const r = await fetch("/api/stats", { cache: "no-store" });
@@ -122,6 +247,10 @@ export function renderPage(s: Snapshot): string {
         `<span class="chip${a.earned ? " on" : ""}" title="${esc(a.detail)}">${esc(a.label)}</span>`,
     )
     .join("");
+
+  const w = s.weekly;
+  const goalHidden = w.goalPct === null;
+  const goalWidth = w.goalPct !== null ? Math.min(100, w.goalPct).toFixed(0) : "0";
 
   return `<!doctype html>
 <html lang="en"><head>
@@ -163,6 +292,41 @@ export function renderPage(s: Snapshot): string {
   .rows { border-top: 1px solid #1a211d; padding-top: 14px; }
   .row { display: flex; justify-content: space-between; padding: 5px 0; }
   .row.muted span { color: #5b6b60; }
+  .tabs { display: flex; gap: 4px; background: #0c100e; border: 1px solid #1a211d;
+    border-radius: 999px; padding: 4px; margin: 22px 0 18px; }
+  .tab { flex: 1; text-align: center; font: inherit; font-size: 12px; font-weight: 700;
+    color: #838b87; background: transparent; border: 0; border-radius: 999px;
+    padding: 7px 0; cursor: pointer; transition: color .2s, background .2s; }
+  .tab.on { color: #09200f; background: linear-gradient(90deg, #4b8057, #82d399); }
+  .view { display: none; }
+  .view.active { display: block; }
+  .whead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .whead b { font-size: 30px; font-weight: 800; }
+  .whead span { color: #838b87; font-size: 12px; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 64px; margin: 4px 0 18px; }
+  .daybar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%;
+    justify-content: flex-end; gap: 4px; }
+  .daybar i { display: block; width: 100%; border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, #82d399, #4b8057); transition: height .5s ease; }
+  .daybar span { color: #5b6b60; font-size: 10px; }
+  .wgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .wstat { background: #0c100e; border: 1px solid #1a211d; border-radius: 12px; padding: 12px; }
+  .wstat span { display: block; color: #838b87; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  .wstat b { font-size: 18px; }
+  .goal { margin-top: 14px; }
+  .goalbar { height: 10px; background: #1a211d; border-radius: 999px; overflow: hidden; }
+  .goalbar > i { display: block; height: 100%; background: linear-gradient(90deg, #4b8057, #82d399);
+    transition: width .5s ease; }
+  .goaltext { color: #838b87; font-size: 12px; margin-top: 6px; }
+  .wrec { color: #5b6b60; font-size: 12px; margin-top: 16px; text-align: center; }
+  .mrow { display: grid; grid-template-columns: 78px 1fr auto; align-items: center;
+    gap: 10px; padding: 8px 0; }
+  .mrow .mlabel { color: #838b87; font-size: 12px; }
+  .mrow .mbar { height: 10px; background: #1a211d; border-radius: 999px; overflow: hidden; }
+  .mrow .mbar > i { display: block; height: 100%; background: linear-gradient(90deg, #4b8057, #82d399);
+    transition: width .5s ease; }
+  .mrow b { font-size: 13px; }
+  .mrow .mtool { grid-column: 2 / 4; color: #5b6b60; font-size: 11px; }
   .donate { display: block; text-align: center; margin-top: 22px; padding: 12px;
     background: linear-gradient(90deg, #4b8057, #82d399); color: #09200f; font-weight: 800;
     border-radius: 12px; text-decoration: none; }
@@ -180,13 +344,49 @@ export function renderPage(s: Snapshot): string {
   </div>
   <div class="bar"><i id="barFill"></i></div>
   <div class="next" id="next">${esc(nextLineOf(s))}</div>
-  <div class="grid">
-    <div class="stat"><b id="statHours">${fmtHours(s.totalHours)}</b><span>Active</span></div>
-    <div class="stat"><b id="statCombos">${s.combos}</b><span>Combos</span></div>
-    <div class="stat"><b id="statStreak">${s.streakDays}🔥</b><span>Streak</span></div>
+
+  <div class="tabs">
+    <button class="tab on" data-view="weekly">Weekly</button>
+    <button class="tab" data-view="alltime">All-time</button>
+    <button class="tab" data-view="monthly">Monthly</button>
   </div>
-  <div class="chips" id="chips">${chips}</div>
-  <div class="rows" id="rows">${toolRows}</div>
+
+  <div class="view active" id="view-weekly">
+    <div class="whead"><b id="wHours">${fmtHours(w.activeHours)}</b><span id="wDelta">${esc(
+      w.isFirstWeek ? FIRST_WEEK_TEXT : deltaText(w.deltaHours),
+    )}</span></div>
+    <div class="bars" id="wBars">${dayBars(w.perDay)}</div>
+    <div class="wgrid">
+      <div class="wstat"><span>Avg / day</span><b id="wAvg">${fmtHours(w.avgHoursPerDay)}/day</b></div>
+      <div class="wstat"><span>Consistency</span><b id="wDays">${w.activeDays} of 7 days</b></div>
+      <div class="wstat"><span>Best day</span><b id="wBest">${
+        w.bestDay ? fmtHours(w.bestDay.hours) : "—"
+      }</b></div>
+      <div class="wstat"><span>Top tool</span><b id="wTop">${esc(topText(w.mostUsedTool))}</b></div>
+    </div>
+    <div class="goal" id="wGoal"${goalHidden ? ' style="display:none"' : ""}>
+      <div class="goalbar"><i id="wGoalFill" style="width:${goalWidth}%"></i></div>
+      <div class="goaltext" id="wGoalText">${
+        w.goalPct !== null ? esc(goalText(w.activeHours, w.goalHours, w.goalPct)) : ""
+      }</div>
+    </div>
+    <div class="wrec" id="wRecords">${esc(recordsText(s.records))}</div>
+  </div>
+
+  <div class="view" id="view-alltime">
+    <div class="grid">
+      <div class="stat"><b id="statHours">${fmtHours(s.totalHours)}</b><span>Active</span></div>
+      <div class="stat"><b id="statCombos">${s.combos}</b><span>Combos</span></div>
+      <div class="stat"><b id="statStreak">${s.streakDays}🔥</b><span>Streak</span></div>
+    </div>
+    <div class="chips" id="chips">${chips}</div>
+    <div class="rows" id="rows">${toolRows}</div>
+  </div>
+
+  <div class="view" id="view-monthly">
+    <div class="mrows" id="mRows">${monthRows(s.monthly)}</div>
+  </div>
+
   <a class="donate" href="${esc(s.donateUrl)}" target="_blank" rel="noopener">☕ Support grindeasy</a>
   <div class="foot" id="foot">${esc(syncLineOf(s))}</div>
 </div>

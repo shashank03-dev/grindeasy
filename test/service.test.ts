@@ -14,12 +14,37 @@ import {
   renderSystemdUnit,
   serviceStatus,
   uninstallService,
+  withoutNpxPath,
   type RunResult,
+  type RunOpts,
   type ServiceEnv,
 } from "../src/service.js";
 import type { Snapshot } from "../src/snapshot.js";
 
 // ── Pure generators, checked for every platform on this one host ─────────────
+
+describe("withoutNpxPath()", () => {
+  it("drops _npx bin dirs and keeps everything else in order", () => {
+    const path = "/home/u/.npm/_npx/abc/node_modules/.bin:/home/u/.local/bin:/usr/bin";
+    expect(withoutNpxPath(path)).toBe("/home/u/.local/bin:/usr/bin");
+  });
+
+  it("is a no-op when no _npx segment is present", () => {
+    expect(withoutNpxPath("/usr/local/bin:/usr/bin")).toBe("/usr/local/bin:/usr/bin");
+  });
+
+  it("passes undefined through (no PATH set)", () => {
+    expect(withoutNpxPath(undefined)).toBeUndefined();
+  });
+
+  it("splits on the given separator (Windows `;`)", () => {
+    const path =
+      "C:\\npm-cache\\_npx\\abc\\node_modules\\.bin;C:\\Users\\u\\AppData\\Roaming\\npm;C:\\Windows";
+    expect(withoutNpxPath(path, ";")).toBe(
+      "C:\\Users\\u\\AppData\\Roaming\\npm;C:\\Windows",
+    );
+  });
+});
 
 describe("artifacts()", () => {
   it("linux writes the systemd user unit", () => {
@@ -230,8 +255,55 @@ describe("installService()", () => {
 
   it("spawns the supervisor on win32 (Run key doesn't start it)", async () => {
     const spawnSupervisor = vi.fn();
-    await installService(env({ platform: "win32", spawnSupervisor }));
+    // Windows now ensures a durable binary too — the supervisor runs `cmd /c
+    // grindeasy` from a clean env, so it probes with `where grindeasy` first.
+    const winRunner = vi.fn(async (_cmd: string, args: string[]): Promise<RunResult> =>
+      args.includes("where grindeasy")
+        ? { code: 0, stdout: "C:\\Users\\u\\AppData\\Roaming\\npm\\grindeasy.cmd\r\n", stderr: "" }
+        : { code: 0, stdout: "", stderr: "" },
+    );
+    await installService(env({ platform: "win32", spawnSupervisor, run: winRunner }));
     expect(spawnSupervisor).toHaveBeenCalledWith(home);
+    // No global install needed when `where` already found a durable copy.
+    expect(winRunner.mock.calls.filter(([cmd]) => cmd === "npm")).toHaveLength(0);
+  });
+
+  it("installs grindeasy globally on win32 when `where` finds only an npx copy", async () => {
+    let installed = false;
+    const winRunner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("where grindeasy")) {
+        return installed
+          ? { code: 0, stdout: "C:\\Users\\u\\AppData\\Roaming\\npm\\grindeasy.cmd\r\n", stderr: "" }
+          : // `where` exits 0 but the only hit is the throwaway npx copy.
+            {
+              code: 0,
+              stdout: "C:\\Users\\u\\AppData\\Local\\npm-cache\\_npx\\abc\\node_modules\\.bin\\grindeasy.cmd\r\n",
+              stderr: "",
+            };
+      }
+      if (cmd === "npm") {
+        installed = true;
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const spawnSupervisor = vi.fn();
+    const ok = await installService(env({ platform: "win32", spawnSupervisor, run: winRunner }));
+    expect(winRunner).toHaveBeenCalledWith("npm", expect.arrayContaining(["i", "-g"]));
+    expect(ok).toBe(true);
+    expect(spawnSupervisor).toHaveBeenCalledWith(home);
+  });
+
+  it("stays foreground on win32 when no durable binary can be installed", async () => {
+    const winRunner = vi.fn(async (cmd: string, args: string[]): Promise<RunResult> => {
+      if (args.includes("where grindeasy")) return { code: 1, stdout: "", stderr: "" };
+      if (cmd === "npm") return { code: 1, stdout: "", stderr: "offline" };
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    const spawnSupervisor = vi.fn();
+    const ok = await installService(env({ platform: "win32", spawnSupervisor, run: winRunner }));
+    expect(ok).toBe(false);
+    expect(spawnSupervisor).not.toHaveBeenCalled();
   });
 
   it("cleans up the artifact when enable fails, leaving nothing half-installed", async () => {
@@ -300,6 +372,34 @@ describe("installService()", () => {
     const ok = await installService(env({ run: runner }));
     expect(existsSync(join(home, ".config/systemd/user/grindeasy.service"))).toBe(false);
     expect(ok).toBe(false);
+  });
+
+  it("probes the login shell with npx's throwaway bin dir stripped from PATH", async () => {
+    // The real npx failure: under `npx grindeasy`, npm prepends an _npx bin dir
+    // holding a grindeasy symlink. A login shell inherits it and resolves there,
+    // hiding the durable global install. The probe must strip _npx before asking.
+    const npxBin = "/home/u/.npm/_npx/abc123/node_modules/.bin";
+    const realBin = "/home/u/.local/opt/node/bin";
+    const original = process.env.PATH;
+    process.env.PATH = `${npxBin}:${realBin}:/usr/bin`;
+    let probePath: string | undefined;
+    const runner = vi.fn(
+      async (_cmd: string, args: string[], opts?: RunOpts): Promise<RunResult> => {
+        if (args.includes("command -v grindeasy")) {
+          probePath = opts?.env?.PATH;
+          return { code: 0, stdout: "/usr/local/bin/grindeasy\n", stderr: "" };
+        }
+        return { code: 0, stdout: "", stderr: "" };
+      },
+    );
+    try {
+      await installService(env({ run: runner }));
+    } finally {
+      process.env.PATH = original;
+    }
+    expect(probePath).toBeDefined();
+    expect(probePath).not.toContain("_npx");
+    expect(probePath).toContain(realBin);
   });
 
   it("treats an npx-cache path as not durable and installs a real one", async () => {

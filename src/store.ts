@@ -10,6 +10,7 @@ export function freshStats(now = Date.now()): Stats {
     firstSeen: new Date(now).toISOString(),
     lastActive: null,
     countedComboBuckets: [],
+    lastRecapWeek: "",
   };
 }
 

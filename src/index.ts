@@ -11,9 +11,16 @@ import {
   serviceStatus,
   uninstallService,
 } from "./service.js";
-import { buildSnapshot, type Snapshot } from "./snapshot.js";
+import {
+  buildSnapshot,
+  computeRecap,
+  computeRecords,
+  computeWeekly,
+  type Snapshot,
+} from "./snapshot.js";
 import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
+import { renderWeeklyPanel } from "./weeklyCli.js";
 import { SyncClient } from "./sync.js";
 import { computeTier } from "./tiers.js";
 import { trackedTools } from "./catalog.js";
@@ -22,7 +29,7 @@ import { needsOnboarding, runOnboarding } from "./onboarding.js";
 import { runToolsCommand } from "./toolsCli.js";
 import * as theme from "./theme.js";
 import { Tracker } from "./tracker.js";
-import type { Plan, TierResult } from "./types.js";
+import type { Plan, Stats, TierResult } from "./types.js";
 
 // package.json ships in the npm tarball alongside dist/, so it resolves both
 // from dist/index.js at runtime and from src/index.ts under tsx in dev.
@@ -131,6 +138,7 @@ function printHelp(): void {
     "",
     `${label("(no command)")}${theme.dimmer("start tracking")}`,
     `${label("login")}${theme.dimmer("join the leaderboard")}`,
+    `${label("weekly")}${theme.dimmer("your last-7-days summary")}`,
     `${label("service")}${theme.dimmer("install | uninstall | status")}`,
     `${label("tools")}${theme.dimmer("list | scan | add | remove")}`,
     "",
@@ -138,6 +146,40 @@ function printHelp(): void {
     `${label("-v, --version")}${theme.dimmer("print version")}`,
   ];
   console.log(theme.banner() + "\n" + theme.panel("commands", lines) + "\n");
+}
+
+/**
+ * Print last week's recap once, the first interactive run of each new ISO week.
+ * Stores the current week key even when there's nothing to show, so it fires at
+ * most once per week and never on the background service (no TTY). Mutates and
+ * persists `stats.lastRecapWeek`.
+ */
+function maybeShowWeeklyRecap(stats: Stats, dir: string, goalHours: number): void {
+  if (!process.stdout.isTTY) return;
+  const recap = computeRecap(stats, Date.now(), goalHours);
+  if (stats.lastRecapWeek === recap.currentWeek) return;
+  stats.lastRecapWeek = recap.currentWeek;
+  saveStats(dir, stats);
+  if (!recap.summary) return;
+  console.log("\n" + renderWeeklyPanel(recap.summary, { title: "last week" }) + "\n");
+}
+
+/**
+ * Show last week's recap under `service status`. The auto recap only fires on an
+ * interactive start, which a background-service user never sees — the service has
+ * no TTY, and a foreground run stops at the duplicate guard before reaching it.
+ * `service status` is the check-in they do run, so it's where the recap belongs.
+ *
+ * Read-only on purpose: the running service holds stats in memory and rewrites
+ * the file every tick, so persisting a "shown" marker here would be clobbered on
+ * its next save. Nothing is stored, so this stays correct to show every time.
+ */
+function showLastWeekRecap(goalHours: number): void {
+  const stats = loadStats(dataDir());
+  const recap = computeRecap(stats, Date.now(), goalHours);
+  if (!recap.summary) return;
+  const records = computeRecords(stats);
+  console.log("\n" + renderWeeklyPanel(recap.summary, { title: "last week", records }) + "\n");
 }
 
 async function main(): Promise<void> {
@@ -164,8 +206,10 @@ async function main(): Promise<void> {
     const verb = process.argv[3];
     if (verb === "install") await installService(env);
     else if (verb === "uninstall") await uninstallService(env);
-    else if (verb === "status") await serviceStatus(env);
-    else {
+    else if (verb === "status") {
+      await serviceStatus(env);
+      showLastWeekRecap(config.weeklyGoalHours);
+    } else {
       console.error("Usage: grindeasy service <install|uninstall|status>");
       process.exit(1);
     }
@@ -174,6 +218,15 @@ async function main(): Promise<void> {
 
   if (process.argv[2] === "tools") {
     await runToolsCommand(process.argv[3]);
+    return;
+  }
+
+  if (process.argv[2] === "weekly") {
+    const { config } = loadConfig();
+    const stats = loadStats(dataDir());
+    const weekly = computeWeekly(stats, Date.now(), config.weeklyGoalHours);
+    const records = computeRecords(stats);
+    console.log("\n" + renderWeeklyPanel(weekly, { records }) + "\n");
     return;
   }
 
@@ -237,7 +290,15 @@ async function main(): Promise<void> {
   });
 
   const server = startStatsServer(config.statsPort, () =>
-    buildSnapshot(stats, plan, activeNames, config.donateUrl, Date.now(), sync.state),
+    buildSnapshot(
+      stats,
+      plan,
+      activeNames,
+      config.donateUrl,
+      Date.now(),
+      sync.state,
+      config.weeklyGoalHours,
+    ),
   );
 
   printStartup({
@@ -249,6 +310,7 @@ async function main(): Promise<void> {
     serverUrl: config.serverUrl,
   });
   if (!config.discordClientId) printSetupHelp();
+  maybeShowWeeklyRecap(stats, dir, config.weeklyGoalHours);
 
   let lastTick = Date.now();
   let running = true;

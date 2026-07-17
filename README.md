@@ -88,7 +88,7 @@ after you close it, and across reboots, install it as a background service:
 
 ```bash
 grindeasy service install     # start tracking in the background
-grindeasy service status      # rank, hours, sync, is it running?
+grindeasy service status      # rank, hours, sync, last week's recap, is it running?
 grindeasy service uninstall   # stop; your token and stats are kept
 ```
 
@@ -237,6 +237,7 @@ line and everything else keeps working.
 | `statsPort` | `4599` | Local dashboard port |
 | `donateUrl` | Buy Me a Coffee | Where the support button points |
 | `showIdlePresence` | `true` | Keep the card up (showing your tier) when idle |
+| `weeklyGoalHours` | `0` | Weekly active-hours goal; when set, the weekly card and dashboard show a progress ring (0 = no goal) |
 | `serverUrl` | hosted board | Leaderboard server base URL (empty = sync off) |
 | `accountToken` | `""` | Written by pairing — you never set this by hand (empty = sync off) |
 | `syncIntervalMs` | `300000` | How often totals are pushed while idle (min 60000) |

@@ -11,3 +11,4 @@ coverage/
 # web
 web/.next/
 web/node_modules/
+.superpowers/

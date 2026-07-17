@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter as PATH_DELIMITER, join } from "node:path";
 import { dataDir } from "./config.js";
 import { REPO_URL } from "./presence.js";
 import type { Snapshot } from "./snapshot.js";
@@ -218,11 +218,15 @@ export interface RunResult {
   stdout: string;
   stderr: string;
 }
-export type Runner = (cmd: string, args: string[]) => Promise<RunResult>;
+export interface RunOpts {
+  /** Replace the child's environment. Omit to inherit this process's env. */
+  env?: NodeJS.ProcessEnv;
+}
+export type Runner = (cmd: string, args: string[], opts?: RunOpts) => Promise<RunResult>;
 
-const defaultRunner: Runner = (cmd, args) =>
+const defaultRunner: Runner = (cmd, args, opts) =>
   new Promise((resolve) => {
-    execFile(cmd, args, { windowsHide: true }, (err, stdout, stderr) => {
+    execFile(cmd, args, { windowsHide: true, env: opts?.env }, (err, stdout, stderr) => {
       const code =
         err && typeof (err as NodeJS.ErrnoException & { code?: number }).code === "number"
           ? Number((err as { code: number }).code)
@@ -357,17 +361,56 @@ async function runAll(env: ServiceEnv, commands: string[][]): Promise<void> {
 }
 
 /**
- * The Linux unit and macOS plist both launch `bash -lc 'exec grindeasy'`, so the
- * service only starts if a *login shell* finds `grindeasy` after this process
- * exits. An npx run never satisfies that — its bin dir is on PATH for the npx
- * child only, not a fresh login shell — so the real precondition is "does a login
- * shell resolve grindeasy to something that isn't the throwaway npx copy?".
+ * Drop npm's transient npx bin dirs (`…/_npx/<hash>/node_modules/.bin`) from a
+ * PATH string. Exported for testing. `sep` is the platform's PATH separator —
+ * `;` on Windows, `:` elsewhere — defaulting to the running platform's.
  */
-async function loginShellHasGrindeasy(env: ServiceEnv): Promise<boolean> {
-  const r = await env.run(LOGIN_SHELL, ["-lc", "command -v grindeasy"]);
+export function withoutNpxPath(
+  path: string | undefined,
+  sep: string = PATH_DELIMITER,
+): string | undefined {
+  if (path === undefined) return path;
+  return path
+    .split(sep)
+    .filter((seg) => !seg.includes("_npx"))
+    .join(sep);
+}
+
+/**
+ * Whether a *durable* `grindeasy` resolves in the environment the background
+ * service will actually run in — not the throwaway one npx puts on PATH for a
+ * single run.
+ *
+ * The Linux unit and macOS plist launch `bash -lc 'exec grindeasy'`, and the
+ * Windows supervisor runs `cmd /c grindeasy`; all three want a real install on
+ * PATH after this process exits. Under `npx grindeasy`, npm prepends a throwaway
+ * `_npx/<hash>/node_modules/.bin` holding a `grindeasy` symlink; a shell we spawn
+ * inherits that PATH and resolves to the ephemeral copy, masking the durable
+ * global install. The service inherits no such entry, so we probe with the npx
+ * bin dir stripped from PATH — the probe then reflects the service's real
+ * environment on every platform.
+ */
+async function durableGrindeasyResolves(env: ServiceEnv): Promise<boolean> {
+  const win = env.platform === "win32";
+  const cleanPath = withoutNpxPath(process.env.PATH, win ? ";" : ":");
+  const opts =
+    cleanPath === undefined ? undefined : { env: { ...process.env, PATH: cleanPath } };
+
+  if (win) {
+    // `where` prints one match per line and exits non-zero when nothing is found.
+    const r = await env.run("cmd", ["/c", "where grindeasy"], opts);
+    if (r.code !== 0) return false;
+    const hits = r.stdout
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    // An npx-cache hit is ephemeral (npm prunes it), so it doesn't count as durable.
+    return hits.some((h) => !h.includes("_npx"));
+  }
+
+  const r = await env.run(LOGIN_SHELL, ["-lc", "command -v grindeasy"], opts);
   if (r.code !== 0) return false;
   const resolved = r.stdout.trim();
-  // A path inside npm's npx cache is ephemeral (npm prunes it), so it doesn't count.
   return resolved.length > 0 && !resolved.includes("_npx");
 }
 
@@ -380,7 +423,7 @@ async function loginShellHasGrindeasy(env: ServiceEnv): Promise<boolean> {
  * rather than enabling a service that would crash-loop.
  */
 async function ensureDurableBinary(env: ServiceEnv): Promise<boolean> {
-  if (await loginShellHasGrindeasy(env)) return true;
+  if (await durableGrindeasyResolves(env)) return true;
 
   env.log("Background tracking needs grindeasy installed for good — npx only lasts one run.");
   env.log(`Installing it now:  npm i -g grindeasy@${env.installVersion}`);
@@ -390,7 +433,7 @@ async function ensureDurableBinary(env: ServiceEnv): Promise<boolean> {
     env.log(`  npm install failed (exit ${r.code})${detail ? `: ${detail}` : ""}`);
     return false;
   }
-  if (!(await loginShellHasGrindeasy(env))) {
+  if (!(await durableGrindeasyResolves(env))) {
     env.log("  Installed, but grindeasy still isn't on PATH in a fresh shell.");
     return false;
   }
@@ -417,14 +460,14 @@ export async function installService(envIn?: Partial<ServiceEnv>): Promise<boole
     return true;
   }
 
-  // The Linux unit and macOS plist run `grindeasy` through a login shell, so a
-  // durable binary must exist first. (Windows runs its own supervisor instead.)
-  if (platform === "linux" || platform === "darwin") {
-    if (!(await ensureDurableBinary(env))) {
-      env.log("Skipping the background service — keep this terminal open to keep tracking,");
-      env.log("or run `npm i -g grindeasy` then `grindeasy service install`.");
-      return false;
-    }
+  // Every supported platform launches `grindeasy` from a clean environment after
+  // this process exits — the Linux unit and macOS plist through a login shell, the
+  // Windows supervisor through `cmd /c grindeasy` — so a durable binary must exist
+  // first, or the service would crash-loop the moment npx's copy disappears.
+  if (!(await ensureDurableBinary(env))) {
+    env.log("Skipping the background service — keep this terminal open to keep tracking,");
+    env.log("or run `npm i -g grindeasy` then `grindeasy service install`.");
+    return false;
   }
 
   // Write artifacts first; the enable step consumes them.

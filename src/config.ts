@@ -52,6 +52,12 @@ export interface Config {
   declinedToolIds: string[];
   /** User-added custom tools; always tracked. */
   customTools: ToolDef[];
+  /**
+   * Weekly active-hours goal. When > 0, the weekly card and dashboard show a
+   * progress ring toward it. 0 (the default) hides the goal UI entirely.
+   * Config-only — set it by hand in config.json; onboarding never asks.
+   */
+  weeklyGoalHours: number;
 }
 
 /**
@@ -113,6 +119,7 @@ export const DEFAULT_CONFIG: Config = {
   enabledToolIds: [],
   declinedToolIds: [],
   customTools: [],
+  weeklyGoalHours: 0,
 };
 
 /** Base directory for all grindeasy runtime data. */

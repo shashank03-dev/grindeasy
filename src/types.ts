@@ -41,14 +41,26 @@ export interface Stats {
   activeMsByTool: Record<string, number>;
   /** Number of distinct combo windows (2+ tools active in the same bucket). */
   combos: number;
-  /** Per-day rollup keyed by YYYY-MM-DD for streaks and the stats page. */
-  daily: Record<string, { activeMs: number; combos: number }>;
+  /**
+   * Per-day rollup keyed by YYYY-MM-DD for streaks, the stats page, and the
+   * weekly/monthly views. Never pruned — the full history is what makes
+   * week-over-week deltas and personal bests computable with no extra state.
+   * `byTool` is per-day active ms per tool id; days written before 0.5.3 omit it
+   * and are read as `{}`.
+   */
+  daily: Record<string, { activeMs: number; combos: number; byTool: Record<string, number> }>;
   /** ISO timestamp of the first time the agent ever ran. */
   firstSeen: string;
   /** ISO timestamp of the most recent tick that recorded activity. */
   lastActive: string | null;
   /** Combo bucket ids already counted, so we never double-count a window. */
   countedComboBuckets: string[];
+  /**
+   * ISO week key (e.g. "2026-W29") of the most recent week whose recap has been
+   * shown in the terminal. Empty until the first recap fires. Guards the auto
+   * weekly recap so it prints at most once per week.
+   */
+  lastRecapWeek: string;
 }
 
 /** A computed tier for display. */
