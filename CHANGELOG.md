@@ -7,6 +7,8 @@ npm package (the local agent); website-only changes are noted as such.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-17
+
 ### Added
 - Slack webhook setup now lives in the terminal: first-run onboarding offers to
   post your weekly recap to Slack, and `grindeasy webhook` (no argument) runs the
@@ -71,7 +73,8 @@ npm package (the local agent); website-only changes are noted as such.
 - Background service installer (systemd user unit, launchd agent, Windows
   per-user run entry) so tracking survives closing the terminal and reboots.
 
-[Unreleased]: https://github.com/shashank03-dev/grindeasy/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/shashank03-dev/grindeasy/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/shashank03-dev/grindeasy/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/shashank03-dev/grindeasy/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/shashank03-dev/grindeasy/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/shashank03-dev/grindeasy/compare/v0.5.1...v0.5.2
