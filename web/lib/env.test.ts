@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv } from "./env";
+import { loadEnv, slackConfigured } from "./env";
 
 // ProcessEnv insists on NODE_ENV, which none of these cases care about.
 const processEnv = (vars: Record<string, string>) =>
@@ -39,5 +39,24 @@ describe("loadEnv baseUrl", () => {
 
   it("falls back to localhost when nothing is configured", () => {
     expect(loadEnv(processEnv({})).baseUrl).toBe("http://localhost:3000");
+  });
+});
+
+describe("slackConfigured", () => {
+  // This gate is what makes shipping the flow before registering the Slack app
+  // harmless: false means /api/slack/start 503s and the agent asks for a pasted
+  // URL instead of failing.
+  it("is true only when both Slack credentials are present", () => {
+    expect(
+      slackConfigured(loadEnv(processEnv({ SLACK_CLIENT_ID: "id", SLACK_CLIENT_SECRET: "secret" }))),
+    ).toBe(true);
+  });
+
+  it("is false when either credential is missing or blank", () => {
+    expect(slackConfigured(loadEnv(processEnv({})))).toBe(false);
+    expect(slackConfigured(loadEnv(processEnv({ SLACK_CLIENT_ID: "id" })))).toBe(false);
+    expect(
+      slackConfigured(loadEnv(processEnv({ SLACK_CLIENT_ID: "id", SLACK_CLIENT_SECRET: "" }))),
+    ).toBe(false);
   });
 });

@@ -5,13 +5,18 @@ import {
   boardRows,
   claimPairRequest,
   consumePairRequest,
+  consumeSlackConnection,
   createPairRequest,
+  createSlackConnection,
   creditDailyTool,
   creditTool,
+  failSlackConnection,
   findLivePairRequest,
+  findLiveSlackConnection,
   getAgentToken,
   newUserCode,
   saveBaseline,
+  storeSlackWebhook,
   upsertUser,
   userWeek,
   weeklyBoardRows,
@@ -201,5 +206,79 @@ describe("pairing", () => {
       "claude-code": 360_000_000,
     });
     expect((await getAgentToken(db, desktop))?.baseline).toBeNull();
+  });
+});
+
+describe("slack connect", () => {
+  const WEBHOOK = {
+    webhookUrl: "https://hooks.slack.com/services/T/B/x",
+    channel: "#standup",
+    teamName: "Acme",
+  };
+
+  it("hands the webhook to the agent once the browser half finishes", async () => {
+    const { agentCode, stateCode } = await createSlackConnection(db, 10 * MINUTE);
+
+    expect(await consumeSlackConnection(db, agentCode)).toEqual({ status: "pending" });
+
+    expect(await findLiveSlackConnection(db, stateCode)).toEqual({ agentCode });
+    expect(await storeSlackWebhook(db, stateCode, WEBHOOK)).toBe(true);
+
+    expect(await consumeSlackConnection(db, agentCode)).toEqual({ status: "ready", ...WEBHOOK });
+  });
+
+  it("issues distinct codes, and the browser's half never reveals the agent's", async () => {
+    const a = await createSlackConnection(db, 10 * MINUTE);
+    const b = await createSlackConnection(db, 10 * MINUTE);
+
+    expect(a.agentCode).not.toBe(a.stateCode);
+    expect(a.agentCode).not.toBe(b.agentCode);
+    expect(a.stateCode).not.toBe(b.stateCode);
+  });
+
+  it("delivers the webhook exactly once", async () => {
+    const { agentCode, stateCode } = await createSlackConnection(db, 10 * MINUTE);
+    await storeSlackWebhook(db, stateCode, WEBHOOK);
+
+    expect((await consumeSlackConnection(db, agentCode)).status).toBe("ready");
+    // A second poll must not re-deliver: the row is spent.
+    expect((await consumeSlackConnection(db, agentCode)).status).toBe("expired");
+  });
+
+  it("reports a failed install as an error, so the agent stops instead of timing out", async () => {
+    const { agentCode, stateCode } = await createSlackConnection(db, 10 * MINUTE);
+
+    expect(await failSlackConnection(db, stateCode, "you cancelled the Slack install")).toBe(true);
+    expect(await consumeSlackConnection(db, agentCode)).toEqual({
+      status: "error",
+      reason: "you cancelled the Slack install",
+    });
+  });
+
+  it("expires the row rather than serving a stale webhook", async () => {
+    const { agentCode, stateCode } = await createSlackConnection(db, -1 * MINUTE);
+
+    expect(await findLiveSlackConnection(db, stateCode)).toBeNull();
+    // The callback must not be able to resurrect an expired attempt.
+    expect(await storeSlackWebhook(db, stateCode, WEBHOOK)).toBe(false);
+    expect(await consumeSlackConnection(db, agentCode)).toEqual({ status: "expired" });
+  });
+
+  it("refuses to overwrite a webhook that is already waiting", async () => {
+    const { agentCode, stateCode } = await createSlackConnection(db, 10 * MINUTE);
+    await storeSlackWebhook(db, stateCode, WEBHOOK);
+
+    // A replayed callback must not swap the destination out from under the
+    // agent that is about to collect it.
+    expect(
+      await storeSlackWebhook(db, stateCode, { ...WEBHOOK, webhookUrl: "https://evil.example/x" }),
+    ).toBe(false);
+    expect(await failSlackConnection(db, stateCode, "nope")).toBe(false);
+
+    expect(await consumeSlackConnection(db, agentCode)).toEqual({ status: "ready", ...WEBHOOK });
+  });
+
+  it("treats an unknown agent code as expired", async () => {
+    expect(await consumeSlackConnection(db, "not-a-real-code")).toEqual({ status: "expired" });
   });
 });

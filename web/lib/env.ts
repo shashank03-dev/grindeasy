@@ -3,6 +3,8 @@ export interface Env {
   baseUrl: string;
   discordClientId: string;
   discordClientSecret: string;
+  slackClientId: string;
+  slackClientSecret: string;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
@@ -28,10 +30,20 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     baseUrl,
     discordClientId: source.DISCORD_CLIENT_ID ?? "",
     discordClientSecret: source.DISCORD_CLIENT_SECRET ?? "",
+    slackClientId: source.SLACK_CLIENT_ID ?? "",
+    slackClientSecret: source.SLACK_CLIENT_SECRET ?? "",
   };
 }
 
 /** Login is optional: without credentials the board and ingest still work. */
 export function oauthConfigured(env: Env): boolean {
   return Boolean(env.discordClientId && env.discordClientSecret);
+}
+
+/**
+ * The "Add to Slack" flow is optional too: without Slack credentials the connect
+ * endpoint returns 503 and the agent falls back to pasting a webhook URL by hand.
+ */
+export function slackConfigured(env: Env): boolean {
+  return Boolean(env.slackClientId && env.slackClientSecret);
 }

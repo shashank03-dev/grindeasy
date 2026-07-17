@@ -10,6 +10,7 @@ import {
   dailyToolTotals,
   pairRequests,
   sessions,
+  slackConnections,
   toolTotals,
   users,
 } from "./schema";
@@ -440,4 +441,149 @@ export async function consumePairRequest(
 
   const accountToken = await createAgentToken(db, claimed[0]!.userId, label);
   return { status: "ready", accountToken };
+}
+
+// ── Slack connect ("Add to Slack") ───────────────────────────────────────────
+// Same two-code shape as pairing, for a different payload: the browser half ends
+// with Slack handing us a webhook, and the agent half collects it exactly once.
+
+export interface SlackConnection {
+  /** Secret; the agent polls with it. Never travels through the browser. */
+  agentCode: string;
+  /** Travels as the OAuth `state`, so this is the half Slack and the browser see. */
+  stateCode: string;
+}
+
+export async function createSlackConnection(db: Db, ttlMs: number): Promise<SlackConnection> {
+  const agentCode = secretToken();
+  const stateCode = secretToken();
+  await db.insert(slackConnections).values({
+    agentCode,
+    stateCode,
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
+  return { agentCode, stateCode };
+}
+
+/** A connect attempt that is still unexpired, unconsumed, and unresolved. */
+export async function findLiveSlackConnection(
+  db: Db,
+  stateCode: string,
+  now = new Date(),
+): Promise<{ agentCode: string } | null> {
+  const [row] = await db
+    .select({ agentCode: slackConnections.agentCode })
+    .from(slackConnections)
+    .where(
+      and(
+        eq(slackConnections.stateCode, stateCode),
+        isNull(slackConnections.consumedAt),
+        sql`${slackConnections.expiresAt} > ${now}`,
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Record the webhook Slack just minted. Guarded on the row still being live and
+ * not already resolved, so a replayed callback cannot overwrite a webhook the
+ * agent is about to collect.
+ */
+export async function storeSlackWebhook(
+  db: Db,
+  stateCode: string,
+  webhook: { webhookUrl: string; channel: string; teamName: string },
+  now = new Date(),
+): Promise<boolean> {
+  const rows = await db
+    .update(slackConnections)
+    .set({ webhookUrl: webhook.webhookUrl, channel: webhook.channel, teamName: webhook.teamName })
+    .where(
+      and(
+        eq(slackConnections.stateCode, stateCode),
+        isNull(slackConnections.webhookUrl),
+        isNull(slackConnections.error),
+        isNull(slackConnections.consumedAt),
+        sql`${slackConnections.expiresAt} > ${now}`,
+      ),
+    )
+    .returning({ agentCode: slackConnections.agentCode });
+  return rows.length > 0;
+}
+
+/** Mark the attempt failed so the polling agent stops with a reason, not a timeout. */
+export async function failSlackConnection(
+  db: Db,
+  stateCode: string,
+  error: string,
+  now = new Date(),
+): Promise<boolean> {
+  const rows = await db
+    .update(slackConnections)
+    .set({ error })
+    .where(
+      and(
+        eq(slackConnections.stateCode, stateCode),
+        isNull(slackConnections.webhookUrl),
+        isNull(slackConnections.error),
+        isNull(slackConnections.consumedAt),
+        sql`${slackConnections.expiresAt} > ${now}`,
+      ),
+    )
+    .returning({ agentCode: slackConnections.agentCode });
+  return rows.length > 0;
+}
+
+export type SlackConnectOutcome =
+  | { status: "pending" }
+  | { status: "expired" }
+  | { status: "error"; reason: string }
+  | ({ status: "ready" } & { webhookUrl: string; channel: string; teamName: string });
+
+/**
+ * Hand the webhook to the agent, exactly once. Same guard as consumePairRequest:
+ * the UPDATE is conditioned on `consumed_at IS NULL` and returns what it changed,
+ * so concurrent polls cannot both collect the webhook.
+ */
+export async function consumeSlackConnection(
+  db: Db,
+  agentCode: string,
+  now = new Date(),
+): Promise<SlackConnectOutcome> {
+  const [pending] = await db
+    .select({
+      webhookUrl: slackConnections.webhookUrl,
+      error: slackConnections.error,
+      expiresAt: slackConnections.expiresAt,
+      consumedAt: slackConnections.consumedAt,
+    })
+    .from(slackConnections)
+    .where(eq(slackConnections.agentCode, agentCode))
+    .limit(1);
+
+  if (!pending || pending.consumedAt !== null) return { status: "expired" };
+  if (pending.error !== null) return { status: "error", reason: pending.error };
+  if (pending.expiresAt <= now) return { status: "expired" };
+  if (pending.webhookUrl === null) return { status: "pending" };
+
+  const claimed = await db
+    .update(slackConnections)
+    .set({ consumedAt: now })
+    .where(and(eq(slackConnections.agentCode, agentCode), isNull(slackConnections.consumedAt)))
+    .returning({
+      webhookUrl: slackConnections.webhookUrl,
+      channel: slackConnections.channel,
+      teamName: slackConnections.teamName,
+    });
+
+  const row = claimed[0];
+  if (!row?.webhookUrl) return { status: "expired" };
+
+  return {
+    status: "ready",
+    webhookUrl: row.webhookUrl,
+    channel: row.channel ?? "your channel",
+    teamName: row.teamName ?? "your workspace",
+  };
 }

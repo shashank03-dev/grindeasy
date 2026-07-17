@@ -133,3 +133,27 @@ export const pairRequests = pgTable(
   },
   (t) => [index("pair_requests_user_code_idx").on(t.userCode)],
 );
+
+/**
+ * "Add to Slack" webhook connect. Same two-code shape as pairRequests: the agent
+ * holds `agentCode` (secret) and polls with it; `stateCode` travels through the
+ * browser as the OAuth `state`. The Slack callback fills in the webhook payload
+ * (or `error`); the agent then consumes the row exactly once. No account is
+ * involved — the webhook belongs to whoever completes the browser flow, and the
+ * server never posts with it, only hands it back.
+ */
+export const slackConnections = pgTable(
+  "slack_connections",
+  {
+    agentCode: text("agent_code").primaryKey(),
+    stateCode: text("state_code").notNull().unique(),
+    webhookUrl: text("webhook_url"),
+    channel: text("channel"),
+    teamName: text("team_name"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  },
+  (t) => [index("slack_connections_state_code_idx").on(t.stateCode)],
+);

@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import { updateConfig, type Config } from "./config.js";
+import { connectSlack, openBrowser, SlackNotConfiguredError } from "./slackConnect.js";
 import { postSlackMessage } from "./webhook.js";
 import * as t from "./theme.js";
 
@@ -23,12 +24,96 @@ export function isLikelyWebhookUrl(url: string): boolean {
 
 /**
  * Shared interactive Slack webhook setup, used by both first-run onboarding and
- * the `grindeasy webhook` command. Prompts for the URL, sends a live test post,
- * and only saves the URL if that post succeeds — so a half-configured webhook is
- * never persisted. Returns true when a URL was saved. Emits no intro/outro so it
- * composes inside the onboarding clack flow and stands alone as a command.
+ * the `grindeasy webhook` command. Returns true when a URL was saved. Emits no
+ * intro/outro so it composes inside the onboarding clack flow and stands alone as
+ * a command.
  */
 export async function runWebhookSetup(config: Config): Promise<boolean> {
+  // Without a server there is nobody to broker the OAuth handoff, so the choice
+  // would be a menu of one.
+  if (!config.serverUrl) return runPasteSetup(config);
+
+  const choice = await p.select({
+    message: "How do you want to connect Slack?",
+    options: [
+      { value: "connect", label: "Add to Slack", hint: "opens your browser, pick a channel" },
+      { value: "paste", label: "Paste a webhook URL", hint: "or a Mattermost-style endpoint" },
+      { value: "cancel", label: "Not now" },
+    ],
+  });
+  if (p.isCancel(choice) || choice === "cancel") return false;
+  if (choice === "paste") return runPasteSetup(config);
+
+  const connected = await runConnectSetup(config);
+  if (connected !== "unconfigured") return connected === "saved";
+
+  // This server has no Slack app, which is not the user's problem to debug.
+  p.log.info(t.dim("This server has no Slack app set up — you can paste a webhook URL instead."));
+  return runPasteSetup(config);
+}
+
+type ConnectResult = "saved" | "failed" | "unconfigured";
+
+/** The "Add to Slack" OAuth flow: Slack mints the webhook, we just collect it. */
+async function runConnectSetup(config: Config): Promise<ConnectResult> {
+  const spin = p.spinner();
+  let waiting = false;
+
+  let webhook;
+  try {
+    webhook = await connectSlack({
+      serverUrl: config.serverUrl,
+      onPrompt: (info) => {
+        p.note(info.connectUrl, "Finish in your browser");
+        openBrowser(info.connectUrl);
+        waiting = true;
+        spin.start("Waiting for you to pick a channel in Slack");
+      },
+    });
+  } catch (err) {
+    if (err instanceof SlackNotConfiguredError) return "unconfigured";
+    if (waiting) spin.stop(t.dim("Slack connect stopped."));
+    p.log.warn(
+      `${err instanceof Error ? err.message : String(err)} — nothing saved. Re-run \`grindeasy webhook\` to try again.`,
+    );
+    return "failed";
+  }
+  spin.stop("Slack connected.");
+
+  // The webhook arrived over a link that briefly lived in a browser, so name the
+  // destination before writing it: an unfamiliar channel here is the one visible
+  // sign that something other than this terminal finished the install.
+  const ok = await p.confirm({
+    message: `Post your weekly recap to ${webhook.channel} in ${webhook.teamName}?`,
+  });
+  if (p.isCancel(ok) || !ok) {
+    p.log.info(t.dim("Nothing saved."));
+    return "failed";
+  }
+
+  // Slack issued this URL seconds ago, so save it first: a failed test post is
+  // worth a warning, not a reason to throw away a good webhook.
+  updateConfig({ slackWebhookUrl: webhook.webhookUrl });
+  config.slackWebhookUrl = webhook.webhookUrl;
+
+  const testSpin = p.spinner();
+  testSpin.start("Sending a test message");
+  const result = await postSlackMessage(webhook.webhookUrl, SETUP_TEST_MESSAGE);
+  if (!result.ok) {
+    testSpin.stop(t.dim("Test message failed."));
+    p.log.warn(`${result.error} — the webhook is saved anyway; \`grindeasy webhook test\` retries.`);
+    return "saved";
+  }
+  testSpin.stop("Test message posted.");
+  p.log.success(t.phosphor("Slack webhook saved — your weekly recap will post automatically."));
+  return "saved";
+}
+
+/**
+ * Paste an existing webhook URL. Sends a live test post and only saves the URL if
+ * that post succeeds, so a half-configured webhook is never persisted.
+ */
+async function runPasteSetup(config: Config): Promise<boolean> {
   const entry = await p.text({
     message: "Paste your Slack Incoming Webhook URL",
     placeholder: "https://hooks.slack.com/services/…",
