@@ -714,7 +714,7 @@ export function Landing() {
                   data-hero-eyebrow
                   className="font-caps text-[11px] uppercase tracking-[0.34em] text-muted-foreground"
                 >
-                  Local agent · v0.5.0 · MIT
+                  Local agent · v0.6.0 · MIT
                 </p>
 
               {/* The heading becomes the same struck metal as the tool names
