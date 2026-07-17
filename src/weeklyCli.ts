@@ -89,6 +89,12 @@ export function renderWeeklyPanel(
       `${dim("top")}   ${label(summary.mostUsedTool.id)}   ${dim(`${Math.round(summary.mostUsedTool.sharePct)}% of the week`)}`,
     );
   }
+  if (summary.perTool.length > 1) {
+    lines.push("");
+    for (const t of summary.perTool) {
+      lines.push(`${dim(label(t.id).padEnd(14))} ${phosphor(fmtHours(t.hours))}`);
+    }
+  }
   if (summary.combos > 0) {
     lines.push(`${dim("combos")} ${summary.combos}`);
   }

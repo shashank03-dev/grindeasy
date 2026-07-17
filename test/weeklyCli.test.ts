@@ -40,6 +40,27 @@ describe("renderWeeklyPanel", () => {
     expect(out).toContain("Claude Code");
   });
 
+  it("lists per-tool hours when more than one tool was used", () => {
+    const s = freshStats(0);
+    const key = dayKey(now);
+    s.daily[key] = {
+      activeMs: 3 * HOUR,
+      combos: 0,
+      byTool: { "claude-code": 2 * HOUR, codex: 1 * HOUR },
+    };
+    const out = renderWeeklyPanel(computeWeekly(s, now));
+    expect(out).toContain("Claude Code");
+    expect(out).toContain("Codex");
+    expect(out).toContain("2.0h");
+    expect(out).toContain("1.0h");
+  });
+
+  it("omits the per-tool breakdown when only one tool was used", () => {
+    const out = renderWeeklyPanel(computeWeekly(statsFromDays(now, { 0: 3 }), now));
+    // The single tool still appears once via the "top" line, not as a breakdown block.
+    expect(out.match(/Claude Code/g)).toHaveLength(1);
+  });
+
   it("shows a goal line only when a goal is set", () => {
     const s = statsFromDays(now, { 0: 5 });
     expect(renderWeeklyPanel(computeWeekly(s, now, 0))).not.toContain("goal");

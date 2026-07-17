@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import type { DayHours, MonthlyWeek, Records, Snapshot, TopTool } from "./snapshot.js";
+import type { DayHours, MonthlyWeek, Records, Snapshot, ToolLine, TopTool } from "./snapshot.js";
 
 const TOOL_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
@@ -49,6 +49,21 @@ function recordsText(r: Records): string {
   return r.bestWeekHours > 0
     ? `Best week ${fmtHours(r.bestWeekHours)} · Longest streak ${r.longestStreak}d`
     : "No full week logged yet";
+}
+
+/** Per-tool hour rows (server-side initial paint; the client rebuilds these). */
+function toolRowsHtml(perTool: ToolLine[]): string {
+  if (!perTool.length) {
+    return `<div class="row muted"><span>No activity yet — start coding</span><b>0m</b></div>`;
+  }
+  return perTool
+    .map(
+      (t) =>
+        `<div class="row"><span>${esc(TOOL_LABELS[t.id] ?? t.id)}</span><b>${fmtHours(
+          t.hours,
+        )}</b></div>`,
+    )
+    .join("");
 }
 
 /** Seven day-height bars (server-side initial paint; the client rebuilds these). */
@@ -133,6 +148,16 @@ function applyWeekly(w) {
   set("wDays", w.activeDays + " of 7 days");
   set("wBest", w.bestDay ? fmtHours(w.bestDay.hours) : "—");
   set("wTop", topText(w.mostUsedTool));
+  const wrows = document.getElementById("wRows");
+  if (wrows) {
+    if (w.perTool.length) {
+      wrows.replaceChildren.apply(wrows, w.perTool.map(function (t) {
+        return makeRow(label(t.id), fmtHours(t.hours), false);
+      }));
+    } else {
+      wrows.replaceChildren(makeRow("No activity yet — start coding", "0m", true));
+    }
+  }
   const bars = document.getElementById("wBars");
   if (bars) {
     const max = Math.max.apply(null, w.perDay.map(function (d) { return d.hours; }).concat([0.0001]));
@@ -230,16 +255,7 @@ setInterval(tick, 5000);
 `;
 
 export function renderPage(s: Snapshot): string {
-  const toolRows = s.perTool.length
-    ? s.perTool
-        .map(
-          (t) =>
-            `<div class="row"><span>${esc(TOOL_LABELS[t.id] ?? t.id)}</span><b>${fmtHours(
-              t.hours,
-            )}</b></div>`,
-        )
-        .join("")
-    : `<div class="row muted"><span>No activity yet — start coding</span><b>0m</b></div>`;
+  const toolRows = toolRowsHtml(s.perTool);
 
   const chips = s.achievements
     .map(
@@ -364,6 +380,7 @@ export function renderPage(s: Snapshot): string {
       }</b></div>
       <div class="wstat"><span>Top tool</span><b id="wTop">${esc(topText(w.mostUsedTool))}</b></div>
     </div>
+    <div class="rows" id="wRows">${toolRowsHtml(w.perTool)}</div>
     <div class="goal" id="wGoal"${goalHidden ? ' style="display:none"' : ""}>
       <div class="goalbar"><i id="wGoalFill" style="width:${goalWidth}%"></i></div>
       <div class="goaltext" id="wGoalText">${
