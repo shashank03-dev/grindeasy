@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { rankBoard } from "../core/leaderboard";
 import {
+  addDailyCombos,
   boardRows,
   claimPairRequest,
   consumePairRequest,
   createPairRequest,
+  creditDailyTool,
   creditTool,
   findLivePairRequest,
   getAgentToken,
   newUserCode,
   saveBaseline,
   upsertUser,
+  userWeek,
+  weeklyBoardRows,
   type Db,
 } from "./queries";
 import { makeTestDb } from "./testing";
@@ -55,6 +59,51 @@ describe("tool totals", () => {
     const board = rankBoard(await boardRows(db));
     expect(board.map((e) => e.username)).toEqual(["bob", "alice"]);
     expect(board[0]!.rank).toBe(1);
+  });
+});
+
+describe("daily buckets", () => {
+  const HOUR = 3_600_000;
+  // A Mon→Sun week; "2026-07-20" (next Monday) is deliberately outside it.
+  const week = ["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18", "2026-07-19"];
+
+  it("accumulates active ms per day", async () => {
+    const user = await upsertUser(db, "1", "ada", null);
+    await creditDailyTool(db, user.id, "2026-07-16", "claude-code", 2 * HOUR);
+    await creditDailyTool(db, user.id, "2026-07-16", "claude-code", 1 * HOUR);
+    const w = await userWeek(db, user.id, week);
+    expect(w.toolTotalsMs).toEqual({ "claude-code": 3 * HOUR });
+  });
+
+  it("aligns the per-day series to the requested days and zero-fills gaps", async () => {
+    const user = await upsertUser(db, "1", "ada", null);
+    await creditDailyTool(db, user.id, "2026-07-13", "codex", 1 * HOUR); // Monday
+    await creditDailyTool(db, user.id, "2026-07-16", "codex", 2 * HOUR); // Thursday
+    const w = await userWeek(db, user.id, week);
+    // Monday, then zeros, Thursday, then zeros — index-for-index with `week`.
+    expect(w.perDay).toEqual([1 * HOUR, 0, 0, 2 * HOUR, 0, 0, 0]);
+    expect(w.combos).toBe(0);
+  });
+
+  it("ranks the weekly board only on activity inside the range", async () => {
+    const a = await upsertUser(db, "1", "alice", null);
+    const b = await upsertUser(db, "2", "bob", null);
+    // In-week: bob out-earns alice.
+    await creditDailyTool(db, a.id, "2026-07-16", "codex", 1 * HOUR);
+    await creditDailyTool(db, b.id, "2026-07-17", "codex", 3 * HOUR);
+    await addDailyCombos(db, b.id, "2026-07-17", 2);
+    // Out-of-week: a huge total for alice on next Monday must not count.
+    await creditDailyTool(db, a.id, "2026-07-20", "codex", 100 * HOUR);
+
+    const board = rankBoard(await weeklyBoardRows(db, "2026-07-13", "2026-07-19"));
+    expect(board.map((e) => e.username)).toEqual(["bob", "alice"]);
+    expect(board[0]!.combos).toBe(2);
+    expect(board.find((e) => e.username === "alice")!.hours).toBeCloseTo(1);
+  });
+
+  it("returns an empty board for a week with no activity", async () => {
+    await upsertUser(db, "1", "ada", null);
+    expect(await weeklyBoardRows(db, "2026-07-13", "2026-07-19")).toEqual([]);
   });
 });
 

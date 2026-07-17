@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BoardRow } from "./leaderboard";
 import { ONLINE_WINDOW_MS } from "./presence";
-import { buildUserCard, type UserCardInput } from "./user-card";
+import {
+  buildUserCard,
+  buildWeeklyUserCard,
+  type UserCardInput,
+  type WeeklyUserCardInput,
+} from "./user-card";
 
 const HOUR = 3_600_000;
 const NOW = 1_700_000_000_000;
@@ -78,5 +83,87 @@ describe("buildUserCard", () => {
     );
     expect(stale.isOnline).toBe(false);
     expect(stale.activeTools).toEqual([]);
+  });
+});
+
+describe("buildWeeklyUserCard", () => {
+  const WEEK = ["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18", "2026-07-19"];
+
+  function weeklyInput(overrides: Partial<WeeklyUserCardInput> = {}): WeeklyUserCardInput {
+    return {
+      username: "ada",
+      avatar: null,
+      discordId: "111",
+      plan: "pro",
+      lifetimeToolTotalsMs: {},
+      lifetimeCombos: 0,
+      weeklyToolTotalsMs: {},
+      weeklyCombos: 0,
+      weeklyBoardRows: [],
+      perDay: [0, 0, 0, 0, 0, 0, 0],
+      weekDays: WEEK,
+      presence: { lastActiveAt: null, lastSeenAt: null, activeNow: null },
+      now: NOW,
+      ...overrides,
+    };
+  }
+
+  it("takes tier and level from lifetime totals but the stats from this week", () => {
+    const card = buildWeeklyUserCard(
+      weeklyInput({
+        // Lifetime: 120h → Platinum (≥100), XP 120.
+        lifetimeToolTotalsMs: { "claude-code": 120 * HOUR },
+        // This week: only 3h and 1 combo.
+        weeklyToolTotalsMs: { "claude-code": 3 * HOUR },
+        weeklyCombos: 1,
+      }),
+    );
+    expect(card.tierName).toBe("Platinum");
+    expect(card.xp).toBeCloseTo(120); // level line is lifetime
+    expect(card.hours).toBeCloseTo(3); // Active is weekly
+    expect(card.combos).toBe(1); // Combos is weekly
+    expect(card.xpToNext).toBeCloseTo(250 - 120); // Diamond, from lifetime
+  });
+
+  it("ranks against the weekly board, not the all-time one", () => {
+    const rows: BoardRow[] = [
+      { discordId: "999", username: "top", avatar: null, plan: "pro", activeMs: 8 * HOUR, combos: 0 },
+      { discordId: "111", username: "ada", avatar: null, plan: "pro", activeMs: 3 * HOUR, combos: 0 },
+    ];
+    const card = buildWeeklyUserCard(
+      weeklyInput({ weeklyBoardRows: rows, weeklyToolTotalsMs: { "claude-code": 3 * HOUR } }),
+    );
+    expect(card.rank).toBe(2);
+    expect(card.totalPlayers).toBe(2);
+  });
+
+  it("builds a 7-bar histogram labelled Monday→Sunday, aligned to perDay", () => {
+    const card = buildWeeklyUserCard(
+      weeklyInput({ perDay: [HOUR, 0, 0, 2 * HOUR, 0, 0, 0] }),
+    );
+    expect(card.histogram).toEqual([
+      { label: "M", hours: 1 },
+      { label: "T", hours: 0 },
+      { label: "W", hours: 0 },
+      { label: "T", hours: 2 },
+      { label: "F", hours: 0 },
+      { label: "S", hours: 0 },
+      { label: "S", hours: 0 },
+    ]);
+  });
+
+  it("marks a paired-but-idle-this-week user as everPaired so they keep the weekly view", () => {
+    const card = buildWeeklyUserCard(
+      weeklyInput({
+        lifetimeToolTotalsMs: { "claude-code": 50 * HOUR }, // has lifetime history
+        weeklyToolTotalsMs: {}, // nothing this week
+      }),
+    );
+    expect(card.everPaired).toBe(true);
+    expect(card.hours).toBe(0);
+  });
+
+  it("marks a never-active user as not everPaired", () => {
+    expect(buildWeeklyUserCard(weeklyInput()).everPaired).toBe(false);
   });
 });

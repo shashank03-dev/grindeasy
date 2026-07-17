@@ -1,9 +1,12 @@
 import { applyIngest, parsePayload } from "@/lib/core/ingest";
 import { rankOf } from "@/lib/core/leaderboard";
+import { dayKeyUtc } from "@/lib/core/week";
 import { getDb } from "@/lib/db";
 import {
   addCombos,
+  addDailyCombos,
   boardRows,
+  creditDailyTool,
   creditTool,
   getAgentToken,
   getUserById,
@@ -35,7 +38,8 @@ export async function POST(request: Request) {
   const payload = parsePayload(body);
   if (!payload) return Response.json({ ok: false, error: "invalid payload" }, { status: 400 });
 
-  const result = applyIngest(record.baseline, payload, Date.now());
+  const now = Date.now();
+  const result = applyIngest(record.baseline, payload, now);
   if (!result.ok) {
     return Response.json(
       { ok: false, error: "rate limited", retryAfterS: result.retryAfterS },
@@ -43,15 +47,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // The whole credit lands against the UTC day of this ingest. Sync gaps are ≤5
+  // min (and clamped to 6h), so at worst a sliver near midnight is attributed to
+  // the day the push arrived — acceptable for a weekly board.
+  const day = dayKeyUtc(now);
+
   // Credits and the new baseline must land together. A partial write that
   // credited hours without advancing the baseline would let the next ingest
-  // credit the same delta again.
+  // credit the same delta again. The daily buckets ride the same transaction so
+  // the cumulative and weekly ledgers can never diverge.
   await db.transaction(async (tx) => {
     const t = tx as unknown as Db;
     for (const [toolId, ms] of Object.entries(result.creditedMsByTool)) {
       await creditTool(t, record.userId, toolId, ms);
+      await creditDailyTool(t, record.userId, day, toolId, ms);
     }
     await addCombos(t, record.userId, result.creditedCombos);
+    await addDailyCombos(t, record.userId, day, result.creditedCombos);
     await setPlan(t, record.userId, payload.plan);
     // Stamp presence only when a tool is actually working, so the "online" dot
     // reflects live coding rather than an idle heartbeat.

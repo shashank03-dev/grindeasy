@@ -1,13 +1,24 @@
+import Link from "next/link";
 import { ParticleField } from "@/components/particle-field";
 import { PlanBadge, TierBadge } from "@/components/tier-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserMenu } from "@/components/user-menu";
-import { getBoard } from "@/lib/board";
+import { getBoard, getWeeklyBoard } from "@/lib/board";
 import type { BoardEntry } from "@/lib/core/leaderboard";
-import { buildUserCard, type UserCardData } from "@/lib/core/user-card";
+import { buildUserCard, buildWeeklyUserCard, type UserCardData } from "@/lib/core/user-card";
+import { isoWeekRangeUtc } from "@/lib/core/week";
 import { getDb } from "@/lib/db";
-import { boardRows, getUserPresence, userToolTotals } from "@/lib/db/queries";
+import {
+  boardRows,
+  getUserPresence,
+  userToolTotals,
+  userWeek,
+  weeklyBoardRows,
+} from "@/lib/db/queries";
 import { currentUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
+
+type Range = "all" | "weekly";
 
 // Rendered at request time so `next build` never needs a database. Freshness is
 // handled in getBoard(), which caches the query for 30s across all viewers.
@@ -25,11 +36,37 @@ function formatRank(rank: number): string {
 }
 
 // The personal dashboard is derived per request for the signed-in user, ranked
-// against the whole field (not just the top 100 shown on the public board).
-async function getUserCard(): Promise<UserCardData | null> {
+// against the whole field (not just the top 100 shown on the public board). It
+// follows the same range toggle as the board, so both switch together.
+async function getUserCard(range: Range): Promise<UserCardData | null> {
   const user = await currentUser();
   if (!user) return null;
   const db = getDb();
+
+  if (range === "weekly") {
+    const week = isoWeekRangeUtc(Date.now());
+    const [lifetimeToolTotalsMs, weekly, weeklyRows, presence] = await Promise.all([
+      userToolTotals(db, user.id),
+      userWeek(db, user.id, week.days),
+      weeklyBoardRows(db, week.start, week.end),
+      getUserPresence(db, user.id),
+    ]);
+    return buildWeeklyUserCard({
+      username: user.username,
+      avatar: user.avatar,
+      discordId: user.discordId,
+      plan: user.plan,
+      lifetimeToolTotalsMs,
+      lifetimeCombos: user.combos,
+      weeklyToolTotalsMs: weekly.toolTotalsMs,
+      weeklyCombos: weekly.combos,
+      weeklyBoardRows: weeklyRows,
+      perDay: weekly.perDay,
+      weekDays: week.days,
+      presence,
+    });
+  }
+
   const [toolTotalsMs, rows, presence] = await Promise.all([
     userToolTotals(db, user.id),
     boardRows(db),
@@ -47,8 +84,23 @@ async function getUserCard(): Promise<UserCardData | null> {
   });
 }
 
-export default async function LeaderboardPage() {
-  const [entries, card] = await Promise.all([getBoard(), getUserCard()]);
+// The ranked board for the requested range. Kept out of the component body so
+// the render stays pure — the current week is read from the clock here.
+function getRangeBoard(range: Range): Promise<BoardEntry[]> {
+  if (range === "weekly") {
+    const week = isoWeekRangeUtc(Date.now());
+    return getWeeklyBoard(week.start, week.end);
+  }
+  return getBoard();
+}
+
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const range: Range = (await searchParams).range === "weekly" ? "weekly" : "all";
+  const [entries, card] = await Promise.all([getRangeBoard(range), getUserCard(range)]);
 
   return (
     <>
@@ -85,13 +137,45 @@ export default async function LeaderboardPage() {
         </code>
       </header>
 
-      {entries.length === 0 ? <EmptyBoard /> : <Board entries={entries} />}
+      <div className="mb-3 flex justify-end">
+        <RangeToggle range={range} />
+      </div>
+
+      {entries.length === 0 ? (
+        <EmptyBoard range={range} />
+      ) : (
+        <Board entries={entries} />
+      )}
 
       <p className="mt-5 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground/70">
-        <span>Synced every 5 minutes. The agent self-reports; the server clamps.</span>
+        <span>
+          {range === "weekly"
+            ? "This week's active time, in UTC. Resets every Monday."
+            : "Synced every 5 minutes. The agent self-reports; the server clamps."}
+        </span>
       </p>
     </main>
     </>
+  );
+}
+
+// Two links styled as a segmented control. The page is SSR, so switching range
+// is a navigation, not client state — the URL stays shareable and both the board
+// and the personal card re-render off the same param.
+function RangeToggle({ range }: { range: Range }) {
+  const base =
+    "rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest transition-colors";
+  const on = "bg-primary/15 text-primary";
+  const off = "text-muted-foreground/70 hover:text-foreground";
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-lg border border-input bg-card p-0.5">
+      <Link href="/leaderboard?range=weekly" className={cn(base, range === "weekly" ? on : off)}>
+        This week
+      </Link>
+      <Link href="/leaderboard" className={cn(base, range === "all" ? on : off)}>
+        All time
+      </Link>
+    </div>
   );
 }
 
@@ -201,7 +285,20 @@ function Board({ entries }: { entries: BoardEntry[] }) {
   );
 }
 
-function EmptyBoard() {
+function EmptyBoard({ range }: { range: Range }) {
+  if (range === "weekly") {
+    return (
+      <div className="rounded-xl border border-dashed border-input px-6 py-16 text-center">
+        <p className="text-sm font-medium text-foreground">
+          No one&apos;s logged time this week yet.
+        </p>
+        <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted-foreground">
+          The week resets every Monday. Code with a tracked tool and you&apos;ll be first on the
+          board.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-dashed border-input px-6 py-16 text-center">
       <p className="text-sm font-medium text-foreground">Nobody has paired an agent yet.</p>

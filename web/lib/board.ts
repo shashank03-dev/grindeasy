@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { rankBoard, type BoardEntry } from "./core/leaderboard";
 import { getDb } from "./db";
-import { boardRows } from "./db/queries";
+import { boardRows, weeklyBoardRows } from "./db/queries";
 
 export const BOARD_CACHE_TAG = "board";
 
@@ -18,3 +18,16 @@ export const getBoard = unstable_cache(
   ["leaderboard"],
   { revalidate: 30, tags: [BOARD_CACHE_TAG] },
 );
+
+// The week's day-key range is part of the cache args, so each week caches
+// separately and a new Monday simply misses the old key and reads fresh.
+const weeklyBoard = unstable_cache(
+  async (start: string, end: string): Promise<BoardEntry[]> =>
+    rankBoard(await weeklyBoardRows(getDb(), start, end)),
+  ["leaderboard-weekly"],
+  { revalidate: 30, tags: [BOARD_CACHE_TAG] },
+);
+
+export function getWeeklyBoard(start: string, end: string): Promise<BoardEntry[]> {
+  return weeklyBoard(start, end);
+}

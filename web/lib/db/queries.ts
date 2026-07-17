@@ -1,10 +1,18 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, between, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { IngestBaseline } from "../core/ingest";
 import type { BoardRow } from "../core/leaderboard";
 import type { Plan } from "../core/types";
-import { agentTokens, pairRequests, sessions, toolTotals, users } from "./schema";
+import {
+  agentTokens,
+  dailyCombos,
+  dailyToolTotals,
+  pairRequests,
+  sessions,
+  toolTotals,
+  users,
+} from "./schema";
 
 /** Satisfied by both the Neon driver and the PGlite driver used in tests. */
 export type Db = PgDatabase<PgQueryResultHKT, typeof import("./schema")>;
@@ -91,6 +99,44 @@ export async function userToolTotals(db: Db, userId: number): Promise<Record<str
   return Object.fromEntries(rows.map((r) => [r.toolId, Number(r.activeMs)]));
 }
 
+// ── daily buckets (the weekly board's time dimension) ────────────────────────
+// The same clamped deltas that go into creditTool/addCombos, additionally
+// recorded against the UTC day they were credited. Written in the same ingest
+// transaction, so the two ledgers never drift.
+
+export async function creditDailyTool(
+  db: Db,
+  userId: number,
+  day: string,
+  toolId: string,
+  ms: number,
+): Promise<void> {
+  if (ms <= 0) return;
+  await db
+    .insert(dailyToolTotals)
+    .values({ userId, day, toolId, activeMs: ms })
+    .onConflictDoUpdate({
+      target: [dailyToolTotals.userId, dailyToolTotals.day, dailyToolTotals.toolId],
+      set: { activeMs: sql`${dailyToolTotals.activeMs} + ${ms}` },
+    });
+}
+
+export async function addDailyCombos(
+  db: Db,
+  userId: number,
+  day: string,
+  n: number,
+): Promise<void> {
+  if (n <= 0) return;
+  await db
+    .insert(dailyCombos)
+    .values({ userId, day, combos: n })
+    .onConflictDoUpdate({
+      target: [dailyCombos.userId, dailyCombos.day],
+      set: { combos: sql`${dailyCombos.combos} + ${n}` },
+    });
+}
+
 /**
  * Record that a user is actively coding right now. Called only on *active*
  * ingests, so `lastActiveAt`'s freshness is the online signal — it stops
@@ -149,6 +195,92 @@ export async function boardRows(db: Db): Promise<BoardRow[]> {
 
   // sum() over bigint comes back as a string from Postgres.
   return rows.map((r) => ({ ...r, activeMs: Number(r.activeMs) }));
+}
+
+/**
+ * BoardRow per user for one inclusive day-key range [start, end], summing the
+ * daily buckets. Only users with activity in the range appear — an empty week is
+ * an empty board, not the whole field at zero.
+ */
+export async function weeklyBoardRows(db: Db, start: string, end: string): Promise<BoardRow[]> {
+  const toolRows = await db
+    .select({
+      userId: dailyToolTotals.userId,
+      activeMs: sql<string>`sum(${dailyToolTotals.activeMs})`,
+    })
+    .from(dailyToolTotals)
+    .where(between(dailyToolTotals.day, start, end))
+    .groupBy(dailyToolTotals.userId);
+
+  const comboRows = await db
+    .select({ userId: dailyCombos.userId, combos: sql<string>`sum(${dailyCombos.combos})` })
+    .from(dailyCombos)
+    .where(between(dailyCombos.day, start, end))
+    .groupBy(dailyCombos.userId);
+
+  const activeByUser = new Map(toolRows.map((r) => [r.userId, Number(r.activeMs)]));
+  const combosByUser = new Map(comboRows.map((r) => [r.userId, Number(r.combos)]));
+
+  const ids = [...activeByUser.keys()];
+  if (ids.length === 0) return [];
+
+  const meta = await db
+    .select({
+      id: users.id,
+      discordId: users.discordId,
+      username: users.username,
+      avatar: users.avatar,
+      plan: users.plan,
+    })
+    .from(users)
+    .where(inArray(users.id, ids));
+
+  return meta.map((u) => ({
+    discordId: u.discordId,
+    username: u.username,
+    avatar: u.avatar,
+    plan: u.plan,
+    activeMs: activeByUser.get(u.id) ?? 0,
+    combos: combosByUser.get(u.id) ?? 0,
+  }));
+}
+
+export interface UserWeek {
+  toolTotalsMs: Record<string, number>;
+  combos: number;
+  /** Total active ms per day, aligned index-for-index to the given day keys. */
+  perDay: number[];
+}
+
+/** One user's activity across a set of days: by-tool totals, combos, and the
+ *  per-day series the card's histogram renders. */
+export async function userWeek(db: Db, userId: number, days: string[]): Promise<UserWeek> {
+  const start = days[0]!;
+  const end = days[days.length - 1]!;
+
+  const toolRows = await db
+    .select({
+      day: dailyToolTotals.day,
+      toolId: dailyToolTotals.toolId,
+      activeMs: dailyToolTotals.activeMs,
+    })
+    .from(dailyToolTotals)
+    .where(and(eq(dailyToolTotals.userId, userId), between(dailyToolTotals.day, start, end)));
+
+  const comboRows = await db
+    .select({ combos: dailyCombos.combos })
+    .from(dailyCombos)
+    .where(and(eq(dailyCombos.userId, userId), between(dailyCombos.day, start, end)));
+
+  const toolTotalsMs: Record<string, number> = {};
+  const msByDay = new Map<string, number>();
+  for (const r of toolRows) {
+    const ms = Number(r.activeMs);
+    toolTotalsMs[r.toolId] = (toolTotalsMs[r.toolId] ?? 0) + ms;
+    msByDay.set(r.day, (msByDay.get(r.day) ?? 0) + ms);
+  }
+  const combos = comboRows.reduce((sum, r) => sum + r.combos, 0);
+  return { toolTotalsMs, combos, perDay: days.map((d) => msByDay.get(d) ?? 0) };
 }
 
 // ── sessions ─────────────────────────────────────────────────────────────────

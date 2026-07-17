@@ -1,7 +1,5 @@
 "use client";
 
-import { gsap } from "gsap";
-import { useEffect, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlanBadge } from "@/components/tier-badge";
 import type { UserCardData } from "@/lib/core/user-card";
@@ -26,37 +24,18 @@ function formatHours(hours: number): string {
 
 /**
  * The signed-in personal dashboard, rendered inside the dropdown panel. Frosted
- * glass tinted to the user's tier, with a cursor-following highlight. All values
- * are derived upstream in buildUserCard; this component only presents them.
+ * glass tinted to the user's tier. All values are derived upstream in
+ * buildUserCard / buildWeeklyUserCard; this component only presents them.
  */
 export function UserCard({ data }: { data: UserCardData }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const paired = data.perTool.length > 0 || data.hours > 0;
+  // On the weekly card, everPaired is lifetime-based so an idle-this-week user
+  // still gets the (zeroed) weekly view; the all-time card leaves it undefined
+  // and we fall back to a has-activity check.
+  const paired = data.everPaired ?? (data.perTool.length > 0 || data.hours > 0);
   const accent = TIER_ACCENT[data.tierName] ?? "var(--primary)";
-
-  // Cursor-following highlight: write the spotlight position straight to CSS
-  // variables via GSAP so the glass gradient follows the pointer without any
-  // React re-render. Skipped entirely under reduced motion.
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const xTo = gsap.quickTo(el, "--spot-x", { duration: 0.5, ease: "power2.out" });
-    const yTo = gsap.quickTo(el, "--spot-y", { duration: 0.5, ease: "power2.out" });
-    const onMove = (e: PointerEvent) => {
-      const rect = el.getBoundingClientRect();
-      // Unitless 0–100; globals.css multiplies by 1% for the gradient position.
-      xTo(((e.clientX - rect.left) / rect.width) * 100);
-      yTo(((e.clientY - rect.top) / rect.height) * 100);
-    };
-    el.addEventListener("pointermove", onMove);
-    return () => el.removeEventListener("pointermove", onMove);
-  }, []);
 
   return (
     <div
-      ref={rootRef}
       className="glass-panel w-[20rem] overflow-hidden rounded-2xl border p-5 shadow-[0_28px_80px_-32px_rgba(0,0,0,0.85)]"
       style={{
         // Border and glow lean on the tier accent; --tier also feeds the glass
@@ -136,6 +115,17 @@ export function UserCard({ data }: { data: UserCardData }) {
             </div>
           </div>
 
+          {/* Weekly view only: a 7-bar Mon→Sun histogram of daily active time.
+              Its presence is also what marks the numbers below as this week's. */}
+          {data.histogram ? (
+            <div className="mt-5">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                This week
+              </p>
+              <Histogram bars={data.histogram} accent={accent} />
+            </div>
+          ) : null}
+
           {/* Two headline numbers: active hours (the product's unit) and combos. */}
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Stat label="Active" value={formatHours(data.hours)} />
@@ -187,6 +177,48 @@ export function UserCard({ data }: { data: UserCardData }) {
       >
         Log out
       </a>
+    </div>
+  );
+}
+
+function Histogram({
+  bars,
+  accent,
+}: {
+  bars: { label: string; hours: number }[];
+  accent: string;
+}) {
+  const max = Math.max(...bars.map((b) => b.hours), 0);
+  return (
+    <div className="mt-2">
+      <div className="flex h-11 items-end gap-1.5">
+        {bars.map((b, i) => {
+          const pct = max > 0 ? (b.hours / max) * 100 : 0;
+          return (
+            <div
+              key={i}
+              title={formatHours(b.hours)}
+              className="flex-1 rounded-sm transition-[height] duration-500 ease-out motion-reduce:transition-none"
+              style={{
+                // A visible baseline for empty days, so the week reads as 7 slots.
+                height: `${Math.max(pct, b.hours > 0 ? 8 : 4)}%`,
+                background:
+                  b.hours > 0
+                    ? `linear-gradient(180deg, ${accent}, color-mix(in oklch, ${accent} 45%, transparent))`
+                    : "var(--border)",
+                opacity: b.hours > 0 ? 1 : 0.5,
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-1 flex gap-1.5">
+        {bars.map((b, i) => (
+          <span key={i} className="flex-1 text-center text-[9px] text-muted-foreground/60">
+            {b.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

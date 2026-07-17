@@ -46,6 +46,43 @@ export const toolTotals = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.toolId] })],
 );
 
+/**
+ * Day-bucketed active time — the same clamped deltas that land in `toolTotals`,
+ * additionally recorded against the UTC day they were credited. This is the only
+ * time dimension in the schema; the cumulative tables above know totals but not
+ * *when*. It exists so the leaderboard can answer "this week". No backfill: rows
+ * accrue from the moment this shipped.
+ */
+export const dailyToolTotals = pgTable(
+  "daily_tool_totals",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** UTC calendar day, "YYYY-MM-DD". Fixed width, so range compares lexically. */
+    day: text("day").notNull(),
+    toolId: text("tool_id").notNull(),
+    activeMs: bigint("active_ms", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.day, t.toolId] }),
+    index("daily_tool_totals_day_idx").on(t.day),
+  ],
+);
+
+/** Day-bucketed combo counts, the weekly counterpart to `users.combos`. */
+export const dailyCombos = pgTable(
+  "daily_combos",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    combos: integer().notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] }), index("daily_combos_day_idx").on(t.day)],
+);
+
 export const sessions = pgTable(
   "sessions",
   {
