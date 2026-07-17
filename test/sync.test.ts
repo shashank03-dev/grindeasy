@@ -116,18 +116,33 @@ describe("SyncClient", () => {
     expect(fetchFn).toHaveBeenCalledOnce();
   });
 
-  it("takes the rank from the ingest response", async () => {
-    const fetchFn = okFetch({ ok: true, rank: 12, totalPlayers: 840 });
+  it("takes the rank and server tier from the ingest response", async () => {
+    const fetchFn = okFetch({
+      ok: true,
+      rank: 12,
+      totalPlayers: 840,
+      tier: { name: "Silver", glyph: "■" },
+    });
     const sync = new SyncClient({ ...opts, fetchFn });
     await sync.maybeSync(statsWith(1), "pro", 1_000_000);
-    expect(sync.state).toMatchObject({ status: "ok", rank: 12, totalPlayers: 840 });
+    expect(sync.state).toMatchObject({
+      status: "ok",
+      rank: 12,
+      totalPlayers: 840,
+      tier: { name: "Silver", glyph: "■" },
+    });
   });
 
-  it("leaves rank null when the server does not send one", async () => {
+  it("leaves rank and tier null when the server does not send them", async () => {
     const fetchFn = okFetch({ ok: true, rank: null, totalPlayers: null });
     const sync = new SyncClient({ ...opts, fetchFn });
     await sync.maybeSync(statsWith(1), "pro", 1_000_000);
-    expect(sync.state).toMatchObject({ status: "ok", rank: null, totalPlayers: null });
+    expect(sync.state).toMatchObject({
+      status: "ok",
+      rank: null,
+      totalPlayers: null,
+      tier: null,
+    });
   });
 
   it("survives a 200 with an unreadable body", async () => {

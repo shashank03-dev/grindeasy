@@ -436,11 +436,15 @@ async function main(): Promise<void> {
     presence.update({
       activeToolNames: activeNames,
       tier: computeTier(stats),
+      // Server-scored tier from the last sync; the card prefers it over the
+      // local tier so the badge matches the board. Null until the first sync.
+      serverTier: sync.state.tier,
       plan,
       sessionStartMs,
       // Whatever the last sync learned. Null until the first one lands, and
       // null forever if the user never joined the board.
       rank: sync.state.rank,
+      totalPlayers: sync.state.totalPlayers,
     });
     saveStats(dir, stats);
     // Report presence to the board as tool *ids* (the leaderboard keys tools by

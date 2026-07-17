@@ -60,9 +60,26 @@ describe("rankOf", () => {
       row({ discordId: "b", username: "bo", activeMs: 10 * H }),
       row({ discordId: "c", username: "cy", activeMs: 30 * H }),
     ];
-    expect(rankOf(rows, "a")).toEqual({ rank: 1, totalPlayers: 3 });
-    expect(rankOf(rows, "c")).toEqual({ rank: 2, totalPlayers: 3 });
-    expect(rankOf(rows, "b")).toEqual({ rank: 3, totalPlayers: 3 });
+    // 50 XP → Gold; 30 and 10 XP → Silver. Tier rides along so the card can show
+    // rank and tier from one server figure.
+    expect(rankOf(rows, "a")).toEqual({
+      rank: 1,
+      totalPlayers: 3,
+      tierName: "Gold",
+      tierGlyph: "★",
+    });
+    expect(rankOf(rows, "c")).toEqual({
+      rank: 2,
+      totalPlayers: 3,
+      tierName: "Silver",
+      tierGlyph: "■",
+    });
+    expect(rankOf(rows, "b")).toEqual({
+      rank: 3,
+      totalPlayers: 3,
+      tierName: "Silver",
+      tierGlyph: "■",
+    });
   });
 
   it("ranks players below the visible top 100, who are most of them", () => {
@@ -71,7 +88,13 @@ describe("rankOf", () => {
     const rows = Array.from({ length: 150 }, (_, i) =>
       row({ discordId: `u${i}`, username: `u${i}`, activeMs: (150 - i) * H }),
     );
-    expect(rankOf(rows, "u119")).toEqual({ rank: 120, totalPlayers: 150 });
+    // 31 XP → Silver.
+    expect(rankOf(rows, "u119")).toEqual({
+      rank: 120,
+      totalPlayers: 150,
+      tierName: "Silver",
+      tierGlyph: "■",
+    });
     expect(rankBoard(rows)).toHaveLength(100);
   });
 

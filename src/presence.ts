@@ -6,7 +6,14 @@ export const REPO_URL = "https://github.com/shashank03-dev/grindeasy";
 
 export interface PresenceState {
   activeToolNames: string[];
+  /** Locally computed tier — the fallback shown until the server reports one. */
   tier: TierResult;
+  /**
+   * Tier as the server scored it at the last sync, or null when unknown. When
+   * present it wins over `tier`, so the badge matches the leaderboard rather
+   * than the agent's local, unclamped estimate.
+   */
+  serverTier: { name: string; glyph: string } | null;
   plan: Plan;
   /** When the current active session started, or null if idle. */
   sessionStartMs: number | null;
@@ -16,6 +23,8 @@ export interface PresenceState {
    * the card exactly as it looked before rank existed.
    */
   rank: number | null;
+  /** Size of the field the rank is out of, for the "of N" suffix, or null. */
+  totalPlayers: number | null;
 }
 
 export interface PresenceOptions {
@@ -144,8 +153,14 @@ export function buildActivity(state: PresenceState, opts: PresenceOptions) {
   const isActive = state.activeToolNames.length > 0;
   if (!isActive && !opts.showIdlePresence) return null;
 
-  const rankPrefix = state.rank !== null ? `#${state.rank} on grindeasy · ` : "";
-  const tierLine = `${rankPrefix}${state.tier.glyph} ${state.tier.name} · ${planBadge(state.plan)}`;
+  const rankPrefix =
+    state.rank !== null
+      ? `#${state.rank}${state.totalPlayers ? ` of ${state.totalPlayers}` : ""} · `
+      : "";
+  // Prefer the server's tier so the badge agrees with the board; fall back to
+  // the local estimate before the first sync or when the board is unreachable.
+  const tier = state.serverTier ?? { name: state.tier.name, glyph: state.tier.glyph };
+  const tierLine = `${rankPrefix}${tier.glyph} ${tier.name} · ${planBadge(state.plan)}`;
   const details = isActive
     ? `Coding · ${state.activeToolNames.join(" + ")}`.slice(0, 128)
     : "Idle";

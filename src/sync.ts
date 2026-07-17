@@ -35,12 +35,19 @@ export interface SyncState {
   rank: number | null;
   /** Size of the field the rank is out of, or null if unknown. */
   totalPlayers: number | null;
+  /**
+   * Tier as the server scored it at the last successful sync, or null when
+   * unknown (never synced, board down, or an older server). The card prefers
+   * this over its local estimate so its badge matches the leaderboard.
+   */
+  tier: { name: string; glyph: string } | null;
 }
 
 /** The bits of the ingest response the agent actually uses. */
 interface IngestResponse {
   rank?: number | null;
   totalPlayers?: number | null;
+  tier?: { name?: unknown; glyph?: unknown } | null;
 }
 
 export interface SyncOptions {
@@ -102,6 +109,7 @@ export class SyncClient {
       lastError: null,
       rank: null,
       totalPlayers: null,
+      tier: null,
     };
   }
 
@@ -146,6 +154,11 @@ export class SyncClient {
         this.state.rank = typeof body.rank === "number" ? body.rank : null;
         this.state.totalPlayers =
           typeof body.totalPlayers === "number" ? body.totalPlayers : null;
+        const t = body.tier;
+        this.state.tier =
+          t && typeof t.name === "string" && typeof t.glyph === "string"
+            ? { name: t.name, glyph: t.glyph }
+            : null;
       } else {
         if (res.status === 429) this.retryNotBeforeMs = now + (await retryAfterMs(res));
         this.state.status = "error";

@@ -168,6 +168,7 @@ function snapshotFixture(over: Partial<Snapshot> = {}): Snapshot {
       lastError: null,
       rank: 3,
       totalPlayers: 128,
+      tier: { name: "Silver", glyph: "■" },
     },
     donateUrl: "https://example.com",
     generatedAt: "2026-07-11T16:44:25.141Z",

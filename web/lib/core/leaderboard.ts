@@ -62,6 +62,10 @@ export function rankBoard(rows: BoardRow[], limit = 100): BoardEntry[] {
 export interface Standing {
   rank: number;
   totalPlayers: number;
+  /** The player's tier, from the same clamped totals the rank is based on, so a
+   *  consumer (e.g. the Discord card) can show rank and tier as one figure. */
+  tierName: string;
+  tierGlyph: string;
 }
 
 /**
@@ -73,5 +77,11 @@ export function rankOf(rows: BoardRow[], discordId: string): Standing | null {
   const all = scoreAndSort(rows);
   const index = all.findIndex((entry) => entry.discordId === discordId);
   if (index === -1) return null;
-  return { rank: index + 1, totalPlayers: all.length };
+  const entry = all[index]!;
+  return {
+    rank: index + 1,
+    totalPlayers: all.length,
+    tierName: entry.tierName,
+    tierGlyph: entry.tierGlyph,
+  };
 }

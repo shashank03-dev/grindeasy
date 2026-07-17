@@ -22,9 +22,11 @@ function state(over: Partial<PresenceState> = {}): PresenceState {
   return {
     activeToolNames: ["Claude Code", "Codex"],
     tier: PLATINUM,
+    serverTier: null,
     plan: "pro",
     sessionStartMs: 1_000,
     rank: null,
+    totalPlayers: null,
     ...over,
   };
 }
@@ -33,10 +35,25 @@ describe("buildActivity", () => {
   it("puts the rank in front of the tier line", () => {
     const activity = buildActivity(state({ rank: 12 }), opts);
     expect(activity?.details).toBe("Coding · Claude Code + Codex");
-    expect(activity?.state).toBe("#12 on grindeasy · ◆ Platinum · PRO");
+    expect(activity?.state).toBe("#12 · ◆ Platinum · PRO");
   });
 
-  it("falls back to the plain tier line when rank is unknown", () => {
+  it("shows the field size as 'of N' once the server reports it", () => {
+    expect(buildActivity(state({ rank: 12, totalPlayers: 40 }), opts)?.state).toBe(
+      "#12 of 40 · ◆ Platinum · PRO",
+    );
+  });
+
+  it("prefers the server's tier over the local estimate, so the badge matches the board", () => {
+    // Local tier is Platinum, but the server scored the (clamped) totals as Bronze.
+    const activity = buildActivity(
+      state({ rank: 2, totalPlayers: 5, serverTier: { name: "Bronze", glyph: "▲" } }),
+      opts,
+    );
+    expect(activity?.state).toBe("#2 of 5 · ▲ Bronze · PRO");
+  });
+
+  it("falls back to the plain local tier line when rank is unknown", () => {
     // Sync off, unpaired, or the board is down — the card must not degrade.
     expect(buildActivity(state({ rank: null }), opts)?.state).toBe("◆ Platinum · PRO");
   });
@@ -44,7 +61,7 @@ describe("buildActivity", () => {
   it("shows rank while idle too, so the card keeps standing visible", () => {
     const activity = buildActivity(state({ activeToolNames: [], sessionStartMs: null, rank: 3 }), opts);
     expect(activity?.details).toBe("Idle");
-    expect(activity?.state).toBe("#3 on grindeasy · ◆ Platinum · PRO");
+    expect(activity?.state).toBe("#3 · ◆ Platinum · PRO");
     expect(activity?.startTimestamp).toBeUndefined();
   });
 

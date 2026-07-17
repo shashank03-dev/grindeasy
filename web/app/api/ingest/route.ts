@@ -84,5 +84,8 @@ export async function POST(request: Request) {
     creditedCombos: result.creditedCombos,
     rank: standing?.rank ?? null,
     totalPlayers: standing?.totalPlayers ?? null,
+    // Tier from the same clamped totals as the rank, so the agent's card shows a
+    // standing that agrees with the board instead of its local estimate.
+    tier: standing ? { name: standing.tierName, glyph: standing.tierGlyph } : null,
   });
 }
