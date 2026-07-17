@@ -11,6 +11,7 @@ export function freshStats(now = Date.now()): Stats {
     lastActive: null,
     countedComboBuckets: [],
     lastRecapWeek: "",
+    lastWebhookRecapWeek: "",
   };
 }
 

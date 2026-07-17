@@ -127,6 +127,24 @@ start a second tracker.
 > antivirus or SmartScreen setups treat that as suspicious. If it gets blocked,
 > either allow it or just keep a terminal open with `npx grindeasy`.
 
+## Weekly recap to Slack
+
+Point grindeasy at a Slack Incoming Webhook and it posts last week's recap to that
+channel once each new week begins — total hours, the week-over-week delta, a
+per-tool breakdown, combos, and goal progress if you set one. It fires from the
+running agent, so it only lands automatically if the background service is up.
+
+Create a webhook in Slack (Apps → Incoming Webhooks → Add to a channel), then set
+`slackWebhookUrl` in `~/.grindeasy/config.json` to the URL Slack gives you. Confirm
+it works with:
+
+```bash
+grindeasy webhook test
+```
+
+That posts your latest recap right away. The recap uploads nothing to grindeasy's
+servers — the agent talks to your Slack webhook directly.
+
 ## Tracked tools
 
 Six tools are always tracked: Claude Code, Codex, OpenCode, Cursor, Gemini CLI and
@@ -253,6 +271,7 @@ line and everything else keeps working.
 | `donateUrl` | Buy Me a Coffee | Where the support button points |
 | `showIdlePresence` | `true` | Keep the card up (showing your tier) when idle |
 | `weeklyGoalHours` | `0` | Weekly active-hours goal; when set, the weekly card and dashboard show a progress ring (0 = no goal) |
+| `slackWebhookUrl` | `""` | Slack Incoming Webhook URL; when set, last week's recap is posted there once each new week begins (empty = off) |
 | `serverUrl` | hosted board | Leaderboard server base URL (empty = sync off) |
 | `accountToken` | `""` | Written by pairing — you never set this by hand (empty = sync off) |
 | `syncIntervalMs` | `300000` | How often totals are pushed while idle (min 60000) |

@@ -61,6 +61,12 @@ export interface Stats {
    * weekly recap so it prints at most once per week.
    */
   lastRecapWeek: string;
+  /**
+   * ISO week key of the most recent week whose recap was posted to the Slack
+   * webhook. Independent of `lastRecapWeek` so the console and the webhook fire
+   * on their own schedules. Empty until the first webhook post.
+   */
+  lastWebhookRecapWeek: string;
 }
 
 /** A computed tier for display. */

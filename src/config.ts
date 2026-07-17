@@ -58,6 +58,12 @@ export interface Config {
    * Config-only — set it by hand in config.json; onboarding never asks.
    */
   weeklyGoalHours: number;
+  /**
+   * Slack Incoming Webhook URL. When set, the agent posts last week's recap to
+   * it once each new ISO week begins. Empty (the default) turns the notifier
+   * off. Config-only — set it by hand in config.json.
+   */
+  slackWebhookUrl: string;
 }
 
 /**
@@ -120,6 +126,7 @@ export const DEFAULT_CONFIG: Config = {
   declinedToolIds: [],
   customTools: [],
   weeklyGoalHours: 0,
+  slackWebhookUrl: "",
 };
 
 /** Base directory for all grindeasy runtime data. */

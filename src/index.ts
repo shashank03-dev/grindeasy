@@ -21,6 +21,7 @@ import {
 import { startStatsServer } from "./statsServer.js";
 import { loadStats, saveStats } from "./store.js";
 import { renderWeeklyPanel } from "./weeklyCli.js";
+import { formatWeeklyRecap, planWeeklyRecapDelivery, postSlackMessage } from "./webhook.js";
 import { SyncClient } from "./sync.js";
 import { computeTier } from "./tiers.js";
 import { trackedTools } from "./catalog.js";
@@ -46,6 +47,9 @@ const pkg = createRequire(import.meta.url)("../package.json") as { version: stri
  * the raw per-tick detection, so a lull is never counted as work.
  */
 const SESSION_GRACE_MS = 5 * 60_000;
+
+/** After a failed webhook post, wait this long before retrying (in-memory only). */
+const WEBHOOK_RETRY_BACKOFF_MS = 30 * 60_000;
 
 /**
  * Only reachable when OFFICIAL_DISCORD_APP_ID is unset (self-hosters, or if
@@ -141,6 +145,7 @@ function printHelp(): void {
     `${label("weekly")}${theme.dimmer("your last-7-days summary")}`,
     `${label("service")}${theme.dimmer("install | uninstall | status")}`,
     `${label("tools")}${theme.dimmer("list | scan | add | remove")}`,
+    `${label("webhook")}${theme.dimmer("test — post a recap to your Slack webhook")}`,
     "",
     `${label("-h, --help")}${theme.dimmer("show this")}`,
     `${label("-v, --version")}${theme.dimmer("print version")}`,
@@ -180,6 +185,43 @@ function showLastWeekRecap(goalHours: number): void {
   if (!recap.summary) return;
   const records = computeRecords(stats);
   console.log("\n" + renderWeeklyPanel(recap.summary, { title: "last week", records }) + "\n");
+}
+
+/**
+ * `grindeasy webhook test` — post a message to the configured Slack webhook now,
+ * so the user can confirm the URL works before trusting the weekly auto-post.
+ * Sends last week's recap if there is one, else the rolling 7-day summary, else
+ * a plain confirmation line when there's no activity to report yet.
+ */
+async function runWebhookCommand(verb: string | undefined): Promise<void> {
+  if (verb !== "test") {
+    console.error("Usage: grindeasy webhook test");
+    process.exit(1);
+  }
+  const { config } = loadConfig();
+  if (!config.slackWebhookUrl) {
+    console.error(
+      `No slackWebhookUrl configured. Add a Slack Incoming Webhook URL under\n` +
+        `"slackWebhookUrl" in ${configPath()}, then run this again.`,
+    );
+    process.exit(1);
+  }
+  const stats = loadStats(dataDir());
+  const now = Date.now();
+  const recap = computeRecap(stats, now, config.weeklyGoalHours);
+  const rolling = computeWeekly(stats, now, config.weeklyGoalHours);
+  const text = recap.summary
+    ? formatWeeklyRecap(recap.summary)
+    : rolling.activeHours > 0
+      ? formatWeeklyRecap(rolling)
+      : "*grindeasy* — webhook connected. No activity to report yet.";
+  const result = await postSlackMessage(config.slackWebhookUrl, text);
+  if (result.ok) {
+    console.log("✓ Sent a test message to your Slack webhook.");
+  } else {
+    console.error(`✗ Slack post failed: ${result.error}`);
+    process.exit(1);
+  }
 }
 
 async function main(): Promise<void> {
@@ -227,6 +269,11 @@ async function main(): Promise<void> {
     const weekly = computeWeekly(stats, Date.now(), config.weeklyGoalHours);
     const records = computeRecords(stats);
     console.log("\n" + renderWeeklyPanel(weekly, { records }) + "\n");
+    return;
+  }
+
+  if (process.argv[2] === "webhook") {
+    await runWebhookCommand(process.argv[3]);
     return;
   }
 
@@ -314,6 +361,40 @@ async function main(): Promise<void> {
 
   let lastTick = Date.now();
   let running = true;
+  // In-memory backoff after a failed Slack post, so a bad URL or an outage
+  // doesn't spam the network (or the log) every tick. Reset per process start.
+  let nextWebhookAttemptMs = 0;
+
+  /**
+   * Once each new ISO week begins, post last week's recap to the configured
+   * Slack webhook exactly once. Persists the posted week only on success (or when
+   * there's nothing to send), so a failed post retries after the backoff.
+   */
+  async function maybePostWeeklyRecap(now: number): Promise<void> {
+    const recap = computeRecap(stats, now, config.weeklyGoalHours);
+    const action = planWeeklyRecapDelivery({
+      webhookUrl: config.slackWebhookUrl,
+      lastWebhookRecapWeek: stats.lastWebhookRecapWeek,
+      recap,
+      now,
+      nextAttemptMs: nextWebhookAttemptMs,
+    });
+    if (action.kind === "skip") return;
+    if (action.kind === "mark") {
+      stats.lastWebhookRecapWeek = action.week;
+      saveStats(dir, stats);
+      return;
+    }
+    const result = await postSlackMessage(config.slackWebhookUrl, action.text);
+    if (result.ok) {
+      stats.lastWebhookRecapWeek = action.week;
+      saveStats(dir, stats);
+      console.log("[webhook] posted last week's recap to Slack");
+    } else {
+      nextWebhookAttemptMs = now + WEBHOOK_RETRY_BACKOFF_MS;
+      console.warn(`[webhook] Slack post failed (${result.error}); retrying in 30m`);
+    }
+  }
 
   async function tick(): Promise<void> {
     const now = Date.now();
@@ -352,6 +433,8 @@ async function main(): Promise<void> {
     // id), mapped back from the display names the session logic tracks.
     const activeToolIds = tools.filter((t) => activeNames.includes(t.name)).map((t) => t.id);
     void sync.maybeSync(stats, plan, now, activeNames.length > 0, activeToolIds);
+
+    await maybePostWeeklyRecap(now);
   }
 
   async function loop(): Promise<void> {

@@ -13,6 +13,11 @@ npm package (the local agent); website-only changes are noted as such.
   the single top tool.
 - README documents the local JSON endpoint at `/api/stats`, including a note
   that the dashboard server listens on all network interfaces.
+- Slack webhook notifier: set `slackWebhookUrl` in the config and grindeasy
+  posts last week's recap (hours, delta, per-tool breakdown, combos, goal) to
+  that channel once each new week begins. `grindeasy webhook test` posts on
+  demand to verify the URL. The agent talks to Slack directly; nothing is
+  uploaded to grindeasy's servers.
 
 ## [0.6.0] — 2026-07-17
 
