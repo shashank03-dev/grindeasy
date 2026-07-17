@@ -11,7 +11,8 @@ npm package (the local agent); website-only changes are noted as such.
 - "Add to Slack": `grindeasy webhook` can now open your browser, let you pick a
   channel, and have Slack create the webhook for you — no more making one by
   hand. Your terminal names the channel it's about to save and asks you to
-  confirm. Pasting a URL is still offered, and is still the way to use a
+  confirm, and says plainly when saving would replace a webhook you already
+  had. Pasting a URL is still offered, and is still the way to use a
   self-hosted Slack-compatible endpoint. The webhook goes straight from Slack to
   your machine: grindeasy's server brokers the handoff, stores no webhook, and
   never posts on your behalf.

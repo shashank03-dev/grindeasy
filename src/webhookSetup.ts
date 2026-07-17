@@ -23,12 +23,35 @@ export function isLikelyWebhookUrl(url: string): boolean {
 }
 
 /**
+ * The confirm shown once Slack has minted a webhook. Setup overwrites whatever is
+ * already configured, so when a webhook exists the prompt has to say *replace*:
+ * otherwise it reads like a fresh setup question and a working webhook is lost
+ * without the user ever being told one was there.
+ */
+export function connectConfirmMessage(
+  webhook: { channel: string; teamName: string },
+  replacing: boolean,
+): string {
+  const destination = `${webhook.channel} in ${webhook.teamName}`;
+  return replacing
+    ? `Replace your current Slack webhook and post your weekly recap to ${destination} instead?`
+    : `Post your weekly recap to ${destination}?`;
+}
+
+/**
  * Shared interactive Slack webhook setup, used by both first-run onboarding and
  * the `grindeasy webhook` command. Returns true when a URL was saved. Emits no
  * intro/outro so it composes inside the onboarding clack flow and stands alone as
  * a command.
  */
 export async function runWebhookSetup(config: Config): Promise<boolean> {
+  // Both paths below overwrite unconditionally, so say so before the choice is
+  // made rather than after the browser trip, when it is easy to have forgotten.
+  const replacing = Boolean(config.slackWebhookUrl?.trim());
+  if (replacing) {
+    p.log.warn("A Slack webhook is already configured — setting up a new one replaces it.");
+  }
+
   // Without a server there is nobody to broker the OAuth handoff, so the choice
   // would be a menu of one.
   if (!config.serverUrl) return runPasteSetup(config);
@@ -44,7 +67,7 @@ export async function runWebhookSetup(config: Config): Promise<boolean> {
   if (p.isCancel(choice) || choice === "cancel") return false;
   if (choice === "paste") return runPasteSetup(config);
 
-  const connected = await runConnectSetup(config);
+  const connected = await runConnectSetup(config, replacing);
   if (connected !== "unconfigured") return connected === "saved";
 
   // This server has no Slack app, which is not the user's problem to debug.
@@ -55,7 +78,7 @@ export async function runWebhookSetup(config: Config): Promise<boolean> {
 type ConnectResult = "saved" | "failed" | "unconfigured";
 
 /** The "Add to Slack" OAuth flow: Slack mints the webhook, we just collect it. */
-async function runConnectSetup(config: Config): Promise<ConnectResult> {
+async function runConnectSetup(config: Config, replacing: boolean): Promise<ConnectResult> {
   const spin = p.spinner();
   let waiting = false;
 
@@ -84,7 +107,7 @@ async function runConnectSetup(config: Config): Promise<ConnectResult> {
   // destination before writing it: an unfamiliar channel here is the one visible
   // sign that something other than this terminal finished the install.
   const ok = await p.confirm({
-    message: `Post your weekly recap to ${webhook.channel} in ${webhook.teamName}?`,
+    message: connectConfirmMessage(webhook, replacing),
   });
   if (p.isCancel(ok) || !ok) {
     p.log.info(t.dim("Nothing saved."));

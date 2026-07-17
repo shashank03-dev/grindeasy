@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLikelyWebhookUrl } from "../src/webhookSetup.js";
+import { connectConfirmMessage, isLikelyWebhookUrl } from "../src/webhookSetup.js";
 
 describe("isLikelyWebhookUrl", () => {
   it("accepts an https Slack webhook URL", () => {
@@ -21,5 +21,23 @@ describe("isLikelyWebhookUrl", () => {
 
   it("tolerates surrounding whitespace", () => {
     expect(isLikelyWebhookUrl("  https://hooks.slack.com/services/x  ")).toBe(true);
+  });
+});
+
+describe("connectConfirmMessage", () => {
+  const webhook = { channel: "#standup", teamName: "Acme Corp" };
+
+  it("names the destination on a fresh setup", () => {
+    expect(connectConfirmMessage(webhook, false)).toBe(
+      "Post your weekly recap to #standup in Acme Corp?",
+    );
+  });
+
+  it("says the current webhook is being replaced when one exists", () => {
+    const message = connectConfirmMessage(webhook, true);
+    // The whole point of the fix: saving is destructive, so the word has to be
+    // there. Naming the destination is not enough — it reads as a fresh setup.
+    expect(message).toContain("Replace your current Slack webhook");
+    expect(message).toContain("#standup in Acme Corp");
   });
 });
