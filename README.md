@@ -78,6 +78,21 @@ it stays local.
 
 The dashboard is at **http://localhost:4599**.
 
+The same page also serves its data as JSON at **http://localhost:4599/api/stats** —
+the exact snapshot the dashboard renders: your tier and XP, total active hours,
+streak, per-tool hours, the weekly and monthly summaries, achievements, and
+records. It's handy for a status bar widget, a Raycast script, or piping into
+`jq`. grindeasy never uploads any of this; the endpoint is just the local
+dashboard server answering on your own port.
+
+```bash
+curl -s localhost:4599/api/stats | jq '.weekly.perTool'
+```
+
+> The dashboard server listens on all network interfaces, so on a shared or
+> untrusted network another device could reach port 4599. If that matters to
+> you, firewall the port or run grindeasy only on trusted networks.
+
 Run `grindeasy --help` for the full command list, or `grindeasy --version` to
 check which release you're on.
 
