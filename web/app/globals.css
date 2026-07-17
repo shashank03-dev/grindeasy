@@ -350,6 +350,33 @@
     }
   }
 
+  /* Terminal caret trailing the headline — a coder's cursor. Drawn as a bar
+     rather than a "|" glyph (the mono face has none), it blinks only when
+     motion is welcome. */
+  .hero-caret {
+    display: inline-block;
+    width: 0.07em;
+    height: 0.72em;
+    margin-left: 0.1em;
+    vertical-align: baseline;
+    background: var(--primary);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-caret {
+      animation: hero-caret-blink 1.05s steps(1) infinite;
+    }
+  }
+  @keyframes hero-caret-blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
+
   /* ── The tools wheel ─────────────────────────────────────────────────────
      valeran.eu's MWG040 mechanics, verified against its live CSS/JS: a 400vh
      pin-height whose 100vh stage is pinned; two 80vw circles hang off either

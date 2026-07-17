@@ -23,7 +23,6 @@ gsap.registerPlugin(ScrollTrigger, SplitText, ScrollSmoother);
 // section then curtains over it. Spec: docs/superpowers/specs/
 // 2026-07-14-landing-molten-rework-design.md.
 
-const HERO_LINES = ["See what you’re", "coding with."];
 
 // What the agent sends if you opt in — and the whole point: it fits in one hand.
 const LEAVES = ["Tool name", "Active minutes", "Combo count", "Plan label", "Discord handle"];
@@ -347,6 +346,9 @@ export function Landing() {
         mm.add("(prefers-reduced-motion: reduce)", () => {
           gsap.set("[data-loader]", { display: "none" });
           gsap.set("[data-hero-line]", { opacity: 1 });
+          // No typewriter under reduced motion — line 3 just rests on the SSR
+          // tool name.
+          gsap.set("[data-hero-line3]", { opacity: 1 });
           const teardownScenes = buildScrollScenes();
           return teardownScenes;
         });
@@ -369,8 +371,8 @@ export function Landing() {
           // pair and the masks shave the glyphs flat.
           splits.forEach((s) =>
             gsap.set(s.masks, {
-              paddingTop: "0.32em",
-              marginTop: "-0.32em",
+              paddingTop: "0.5em",
+              marginTop: "-0.5em",
               paddingBottom: "0.3em",
               marginBottom: "-0.3em",
             }),
@@ -382,7 +384,51 @@ export function Landing() {
           const heroLines = splits.flatMap((s) => s.lines) as HTMLElement[];
           heroLines.forEach((l) => l.classList.add("metal-text", "metal-bright"));
           gsap.set(heroLines, { "--tint": "#dfe6ee" });
+          // The cycling tool word lives outside the split (so the typewriter
+          // can rewrite it freely), so it needs its own metal fill and joins
+          // the shine targets — otherwise the specular would live across the
+          // heading but die on the one word that finishes the sentence.
+          const toolEl = root.current?.querySelector<HTMLElement>("[data-hero-tool]") ?? null;
+          const toolMetal = toolEl ? [toolEl] : [];
+          toolMetal.forEach((l) => l.classList.add("metal-text", "metal-bright"));
+          gsap.set(toolMetal, { "--tint": "#dfe6ee" });
+          const shineTargets = [...heroLines, ...toolMetal];
+          // The tool starts blank so it types itself in as line 3 rises — the
+          // SSR value is only ever seen with JS off.
+          if (toolEl) toolEl.textContent = "";
           gsap.set(heads, { opacity: 1 });
+          gsap.set("[data-hero-line3]", { opacity: 1 });
+
+          // The live tool cycle: type a name, hold, delete, next — the sentence
+          // completing itself with whatever grindeasy would detect. One
+          // repeating timeline (not recursion) so matchMedia reverts it cleanly.
+          const TOOLS = [
+            "Claude Code",
+            "Codex",
+            "Cursor",
+            "Gemini CLI",
+            "Windsurf",
+            "GitHub Copilot",
+            "Zed",
+            "Aider",
+          ];
+          const toolCycle = gsap.timeline({ repeat: -1, paused: true });
+          if (toolEl) {
+            const type = (name: string, dir: "in" | "out") => {
+              const o = { n: dir === "in" ? 0 : name.length };
+              return gsap.to(o, {
+                n: dir === "in" ? name.length : 0,
+                duration: Math.max(name.length * (dir === "in" ? 0.05 : 0.028), 0.3),
+                ease: "none",
+                onUpdate: () => {
+                  toolEl.textContent = name.slice(0, Math.round(o.n));
+                },
+              });
+            };
+            TOOLS.forEach((name) => {
+              toolCycle.add(type(name, "in")).to({}, { duration: 1.7 }).add(type(name, "out"));
+            });
+          }
 
           const intro = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
           intro
@@ -394,14 +440,22 @@ export function Landing() {
               splits.flatMap((s) => s.lines),
               { yPercent: 165, duration: 1.25, stagger: 0.09 },
             )
+            // Line 3 rises out of its own mask, a beat behind the split lines.
+            .from(
+              "[data-hero-line3]",
+              { yPercent: 130, duration: 1.25, ease: "expo.out" },
+              0.18,
+            )
             // One specular pass over the heading as it lands — the metal
             // announcing itself — settling just left of centre.
             .fromTo(
-              heroLines,
+              shineTargets,
               { "--shine": -0.25 },
               { "--shine": 0.55, duration: 2.2, ease: "power2.inOut" },
               0.35,
             )
+            // Once line 3 has landed, the tool word starts typing itself in.
+            .call(() => toolCycle.play(0), undefined, 1.1)
             .from("[data-hero-eyebrow]", { opacity: 0, duration: 0.6 }, 0.15)
             .from("[data-hero-sub]", { opacity: 0, y: 24, duration: 0.9 }, 0.5)
             .from(
@@ -417,9 +471,9 @@ export function Landing() {
           // back to the intro's resting point.
           gsap
             .timeline({ repeat: -1, repeatDelay: 4.5, delay: 6.5 })
-            .to(heroLines, { "--shine": 1.6, duration: 1.3, ease: "power2.in" })
-            .set(heroLines, { "--shine": -0.5 })
-            .to(heroLines, { "--shine": 0.55, duration: 1.7, ease: "power2.out" });
+            .to(shineTargets, { "--shine": 1.6, duration: 1.3, ease: "power2.in" })
+            .set(shineTargets, { "--shine": -0.5 })
+            .to(shineTargets, { "--shine": 0.55, duration: 1.7, ease: "power2.out" });
 
           // Loader: the mark blurs in over black, holds a beat, blurs out;
           // scroll stays locked until it clears. Once per session.
@@ -555,7 +609,7 @@ export function Landing() {
     <div ref={root} data-landing>
       {/* Without JS nothing animates, so nothing may start hidden. */}
       <noscript>
-        <style>{`[data-reveal],[data-hero-line]{opacity:1!important;transform:none!important}[data-loader]{display:none!important}[data-strike]{transform:scaleX(1)!important}[data-draw]{stroke-dashoffset:0!important}`}</style>
+        <style>{`[data-reveal],[data-hero-line],[data-hero-line3]{opacity:1!important;transform:none!important}[data-loader]{display:none!important}[data-strike]{transform:scaleX(1)!important}[data-draw]{stroke-dashoffset:0!important}`}</style>
       </noscript>
 
       {/* Shared gradient for the static metal marks. */}
@@ -678,16 +732,47 @@ export function Landing() {
                 data-hero-head
                 className="mt-5 flex flex-col font-editorial text-[clamp(3rem,9vw,9rem)] leading-[0.94] tracking-[-0.01em] text-foreground"
               >
-                {HERO_LINES.map((line) => (
-                  <span key={line} data-hero-line className="block opacity-0">
-                    {line}
+                <span data-hero-line className="block opacity-0">
+                  See what you’re
+                </span>
+                <span data-hero-line className="block opacity-0">
+                  coding with
+                </span>
+                {/* A small live caption, not a headline line: grindeasy naming
+                    the tool it detects, cycling. It sets its OWN small
+                    font-size so the rise-mask's em padding is scoped to that
+                    size and can't punch up into the giant line above (the
+                    earlier overlap). The tool stays a plain, freely-rewritable
+                    node — SplitText would fight the typewriter. */}
+                <span
+                  className="mt-4 block overflow-hidden pt-[0.4em] pb-[0.35em] font-normal leading-none tracking-normal"
+                  style={{ fontSize: "clamp(1.05rem, 2.1vw, 1.6rem)" }}
+                >
+                  <span
+                    data-hero-line3
+                    className="flex items-center whitespace-nowrap opacity-0"
+                  >
+                    <span
+                      data-hero-prompt
+                      aria-hidden
+                      className="mr-[0.5em] font-mono text-[0.82em] not-italic leading-none text-primary"
+                    >
+                      ❯
+                    </span>
+                    <span
+                      data-hero-tool
+                      className="font-serif italic leading-none tracking-[-0.01em]"
+                    >
+                      Claude Code
+                    </span>
+                    <span data-hero-caret aria-hidden className="hero-caret" />
                   </span>
-                ))}
+                </span>
               </h1>
 
                 <p
                   data-hero-sub
-                  className="mt-9 max-w-[46ch] text-[16px] leading-relaxed text-muted-foreground"
+                  className="mt-9 max-w-[46ch] text-[16px] leading-relaxed text-foreground/80"
                 >
                   A tiny local agent that puts the AI tool you’re actually using on your Discord
                   profile,{" "}
