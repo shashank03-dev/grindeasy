@@ -425,6 +425,8 @@ export function startStatsServer(port: number, getSnapshot: () => Snapshot): Ser
   server.on("error", (err) => {
     console.warn(`[stats] Could not start local dashboard on :${port} — ${err.message}`);
   });
-  server.listen(port);
+  // Bind to loopback only. The dashboard is for the person at this machine; on a
+  // shared or untrusted network no other device should reach the stats port.
+  server.listen(port, "127.0.0.1");
   return server;
 }

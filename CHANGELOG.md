@@ -11,8 +11,12 @@ npm package (the local agent); website-only changes are noted as such.
 - Weekly per-tool breakdown: the dashboard's Weekly tab and the `grindeasy
   weekly` panel now list hours for each tool used in the last 7 days, not just
   the single top tool.
-- README documents the local JSON endpoint at `/api/stats`, including a note
-  that the dashboard server listens on all network interfaces.
+- README documents the local JSON endpoint at `/api/stats`.
+
+### Changed
+- The dashboard server now binds to loopback (`127.0.0.1`) instead of all
+  interfaces, so it's reachable from your own machine but not from other devices
+  on the network.
 - Slack webhook notifier: set `slackWebhookUrl` in the config and grindeasy
   posts last week's recap (hours, delta, per-tool breakdown, combos, goal) to
   that channel once each new week begins. `grindeasy webhook test` posts on

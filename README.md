@@ -89,9 +89,8 @@ dashboard server answering on your own port.
 curl -s localhost:4599/api/stats | jq '.weekly.perTool'
 ```
 
-> The dashboard server listens on all network interfaces, so on a shared or
-> untrusted network another device could reach port 4599. If that matters to
-> you, firewall the port or run grindeasy only on trusted networks.
+> The dashboard binds to loopback (`127.0.0.1`) only, so it's reachable from this
+> machine but not from other devices on the network.
 
 Run `grindeasy --help` for the full command list, or `grindeasy --version` to
 check which release you're on.
