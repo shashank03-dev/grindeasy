@@ -7,6 +7,24 @@ npm package (the local agent); website-only changes are noted as such.
 
 ## [Unreleased]
 
+### Changed
+- Website only: grindeasy.tech is redesigned from scratch. One dithered WebGL
+  object now runs behind every page, ray-marched at low resolution and printed
+  through an ordered dither, and it changes shape with each chapter of the
+  story. The landing is seven scroll chapters:
+  - the hero sentence, finished live by the detected tool
+  - "it reads the clock, not the file"
+  - a scanner that steps through all thirteen tools and the exact folder each
+    one is watched by
+  - the Discord card's whole life in four beats
+  - a sideways tier ladder, read from the real scoring module
+  - the sync payload as a diff
+  - the board
+
+  The leaderboard, privacy, pairing and Slack pages share the same type
+  (Geist Sans, Mono and Pixel), chrome and palette. Reduced motion gets the
+  full content with no pins or smoothing.
+
 ## [0.10.0] — 2026-07-17
 
 ### Changed

@@ -7,34 +7,16 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Literal families, not var(). `@theme inline` resolves at parse time, so it
-     cannot see the --font-* variables next/font injects at runtime, and
-     `--font-sans: var(--font-sans)` is circular. Both silently drop the font.
-     next/font/local emits the generated family name into the variable, so these
-     read it through var() — the one place that indirection is correct, because
-     the family name is hashed at build time and cannot be typed literally. */
-  --font-sans: var(--font-din), "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-akkurat-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-display: var(--font-din-condensed), "Arial Narrow", Impact, sans-serif;
-  --font-heading: var(--font-din-condensed), "Arial Narrow", Impact, sans-serif;
-  --font-serif: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
-  /* Landing editorial voices (valeran-style rework). Same var() indirection
-     rationale as above: next/font emits hashed family names at runtime. */
-  --font-editorial: var(--font-maltiner), Georgia, "Times New Roman", serif;
-  --font-caps: var(--font-neue-black), "Arial Narrow", Impact, sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  /* next/font emits hashed family names into these variables at runtime, so
+     they are read through var() — @theme inline cannot see them otherwise. */
+  --font-sans: var(--font-geist-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-pixel: var(--font-geist-pixel-square), var(--font-geist-mono), monospace;
+  --font-dot: var(--font-geist-pixel-circle), var(--font-geist-mono), monospace;
+  --color-signal: var(--signal);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-line: var(--line);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -56,784 +38,404 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.52, 0, 0, 1);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* ── Phosphor ────────────────────────────────────────────────────────────────
+   One theme for the whole site. Ink, paper, and a single phosphor signal —
+   the green of the grindeasy mark, pushed to CRT brightness so it survives
+   being dithered down to two tones. Tier colors are data and live with the
+   tier badge; nothing else on the surface gets a hue. The dither field
+   (components/site/dither-field.tsx) duplicates --ink and --signal as RGB —
+   change one, change both. */
+:root,
 .dark {
-  /* Not pure-neutral. A whisper of green chroma runs through every dark surface
-     — phosphor bleed, the way a real terminal is never truly grey. This is the
-     single change that stops the board reading as a generic dark website. */
-  --background: oklch(0.155 0.006 165);
-  --foreground: oklch(0.925 0.006 150);
-  --card: oklch(0.185 0.007 165);
-  --card-foreground: oklch(0.925 0.006 150);
-  --popover: oklch(0.185 0.007 165);
-  --popover-foreground: oklch(0.925 0.006 150);
-  /* Single interface accent, ≤10% of surface: primary actions, focus, "live",
-     and rank 1. Deliberately green — the tier ramp already owns bronze, silver,
-     gold, platinum and diamond, so a metallic accent would read as tier data. */
-  --primary: oklch(0.8 0.115 152);
-  --primary-foreground: oklch(0.17 0.03 155);
-  --secondary: oklch(0.225 0.008 165);
-  --secondary-foreground: oklch(0.925 0.006 150);
-  --muted: oklch(0.225 0.008 165);
-  --muted-foreground: oklch(0.63 0.012 160);
-  --accent: oklch(0.225 0.009 165);
-  --accent-foreground: oklch(0.925 0.006 150);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.85 0.02 160 / 10%);
-  --input: oklch(0.85 0.02 160 / 15%);
-  --ring: oklch(0.8 0.115 152 / 55%);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
+  --ink: #08090a;
+  --ink-2: #0f1012;
+  --ink-3: #16171a;
+  --paper: #ecebe4;
+  --signal: #9cf27f;
+  --line: rgb(236 235 228 / 0.1);
 
-/* ── Landing theme ─────────────────────────────────────────────────────────
-   Scoped rework: the landing derives its palette from the hero photograph —
-   a lone figure at a desk under a cold spotlight in a black void. Cold
-   near-black, silver text, steel light, one warm CRT ember. Scoped to
-   [data-landing] so the leaderboard keeps the green terminal theme. */
-[data-landing] {
-  /* Graded teal-and-ember, not neutral grey: the blacks carry real blue
-     chroma (a cinema shadow, not a dead fill) and the light is ice, not
-     silver. stage.tsx duplicates --background and --primary as BG_RGB /
-     LIGHT_RGB — change one, change both. */
-  --background: oklch(0.128 0.016 252);
-  --foreground: oklch(0.94 0.008 240);
-  --card: oklch(0.165 0.018 250);
-  --card-foreground: oklch(0.94 0.008 240);
-  --popover: oklch(0.165 0.018 250);
-  --popover-foreground: oklch(0.94 0.008 240);
-  /* The spotlight: ice light with actual color in it. Carries CTAs, focus,
-     and the shader's light pool. */
-  --primary: oklch(0.84 0.07 230);
-  --primary-foreground: oklch(0.15 0.02 250);
-  --secondary: oklch(0.2 0.018 250);
-  --secondary-foreground: oklch(0.94 0.008 240);
-  --muted: oklch(0.2 0.018 250);
-  /* Lifted from 0.63 — body copy on the old theme failed 4.5:1. */
-  --muted-foreground: oklch(0.74 0.014 242);
-  --accent: oklch(0.2 0.018 250);
-  --accent-foreground: oklch(0.94 0.008 240);
-  --border: oklch(0.88 0.02 240 / 12%);
-  --input: oklch(0.88 0.02 240 / 16%);
-  --ring: oklch(0.84 0.07 230 / 55%);
-  /* The CRT glow on the figure's screen — the warm half of the grade. */
-  --ember: oklch(0.74 0.15 58);
-  background: var(--background);
-  color: var(--foreground);
+  --background: var(--ink);
+  --foreground: var(--paper);
+  --card: var(--ink-2);
+  --card-foreground: var(--paper);
+  --popover: var(--ink-2);
+  --popover-foreground: var(--paper);
+  --primary: var(--signal);
+  --primary-foreground: #08130a;
+  --secondary: var(--ink-3);
+  --secondary-foreground: var(--paper);
+  --muted: var(--ink-3);
+  /* 6.1:1 on --ink — body copy stays above AA even at 14px. */
+  --muted-foreground: #8f8e88;
+  --accent: var(--ink-3);
+  --accent-foreground: var(--paper);
+  --destructive: #ff6b5e;
+  --border: var(--line);
+  --input: rgb(236 235 228 / 0.16);
+  --ring: rgb(156 242 127 / 0.6);
+  --radius: 0.375rem;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    background: var(--ink);
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--signal);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 1px solid var(--signal);
+    outline-offset: 3px;
   }
 }
 
-@layer components {
-  /* ── Landing ─────────────────────────────────────────────────────────── */
+/* Lenis owns the scroll on the landing; these are its documented hooks. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
 
-  /* Film grain over the whole landing. Kills the flat-fill look without an
-     asset: inline feTurbulence, blended soft-light so it rides every surface. */
-  .noise {
+/* The hero copy waits for its entrance; JS (or <noscript>) lifts this. */
+[data-intro] {
+  opacity: 0;
+}
+
+@layer components {
+  /* ── Texture ─────────────────────────────────────────────────────────── */
+
+  /* Film grain over everything, no asset: inline feTurbulence, soft-light. */
+  .grain {
     position: fixed;
-    inset: 0;
+    inset: -50%;
     z-index: 90;
     pointer-events: none;
-    opacity: 0.07;
+    opacity: 0.06;
     mix-blend-mode: soft-light;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 160px 160px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    animation: grain-shift 0.9s steps(4) infinite;
+  }
+  @keyframes grain-shift {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-3%, 2%); }
+    50% { transform: translate(2%, -3%); }
+    75% { transform: translate(-1%, 3%); }
+    100% { transform: translate(0, 0); }
   }
 
-  /* Nav links: hairline wipes in from the left on hover, exits to the right on
-     leave. The origin flip is what makes it read as motion, not a toggle. */
-  .link-underline {
+  /* The page's measuring grid: twelve hairline columns, barely there. It is
+     the structure every chapter snaps to, left visible on purpose. */
+  .measure {
+    position: fixed;
+    inset: 0 var(--gutter);
+    z-index: 1;
+    pointer-events: none;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1fr);
+    --cols: 4;
+    --gutter: 1rem;
+  }
+  .measure > span {
+    border-left: 1px solid rgb(236 235 228 / 0.035);
+  }
+  .measure > span:last-child {
+    border-right: 1px solid rgb(236 235 228 / 0.035);
+  }
+  @media (min-width: 768px) {
+    .measure {
+      --cols: 12;
+      --gutter: 2.5rem;
+    }
+  }
+
+  /* Static stand-in for the dither field: a dot screen over a soft pool of
+     light. Shown when WebGL is unavailable or before the canvas is live. */
+  .dither-fallback {
+    background:
+      radial-gradient(circle at center, rgb(236 235 228 / 0.55) 0.9px, transparent 1.3px) 0 0 / 5px 5px,
+      var(--ink);
+    mask-image: radial-gradient(50% 55% at var(--fx, 68%) var(--fy, 45%), #000 0%, rgb(0 0 0 / 0.35) 45%, transparent 75%);
+  }
+
+  /* ── Type ────────────────────────────────────────────────────────────── */
+
+  /* The data voice at label size: mono caps with air. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.3;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .display {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: -0.055em;
+    line-height: 0.88;
+  }
+
+  /* SplitText line masks get headroom so descenders and accents are never
+     shaved by the clip; the paired negative margin keeps leading intact. */
+  .line-mask {
+    padding-bottom: 0.12em;
+    margin-bottom: -0.12em;
+  }
+
+  /* Typewriter caret: a solid pixel block, blinking in steps. */
+  .caret {
+    display: inline-block;
+    width: 0.55em;
+    height: 0.95em;
+    margin-left: 0.08em;
+    vertical-align: -0.1em;
+    background: var(--signal);
+    animation: caret-blink 1s steps(1) infinite;
+  }
+  @keyframes caret-blink {
+    50% { opacity: 0; }
+  }
+
+  /* ── Interaction ─────────────────────────────────────────────────────── */
+
+  /* Hairline wipes in from the left, exits right. */
+  .link-u {
     position: relative;
   }
-  .link-underline::after {
+  .link-u::after {
     content: "";
     position: absolute;
     left: 0;
     right: 0;
-    bottom: -0.45em;
+    bottom: -0.3em;
     height: 1px;
     background: currentColor;
     transform: scaleX(0);
     transform-origin: right;
-    transition: transform 0.35s cubic-bezier(0.52, 0, 0, 1);
+    transition: transform 0.45s var(--ease-snap);
   }
-  .link-underline:hover::after,
-  .link-underline:focus-visible::after {
+  .link-u:hover::after,
+  .link-u:focus-visible::after {
     transform: scaleX(1);
     transform-origin: left;
   }
 
-  /* Serif counter-voice inside the condensed caps. Sized up ~6% so the two
-     faces sit on the same optical line despite very different x-heights. */
-  .serif-accent {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    text-transform: none;
-    letter-spacing: 0;
-    font-size: 1.06em;
-  }
-
-  /* Scroll-driven hairline: GSAP writes --rule-scale, the rule obeys. */
-  .rule-x {
-    height: 1px;
-    background: color-mix(in oklch, var(--foreground) 22%, transparent);
-    transform: scaleX(var(--rule-scale, 1));
-    transform-origin: 0 0;
-  }
-
-  /* Character roll (valeran-style): each character carries its duplicate one
-     line below in its own text-shadow; hovering the [data-roll] ancestor
-     slides the characters up a line, staggered by --ri. Pure CSS — the
-     component only splits the text. */
-  .roll-line {
+  /* Bracketed control: [ label ] — the brackets open out on hover. */
+  .bracket {
     display: inline-flex;
-    overflow: hidden;
-    /* Sized against the display face's ink (ascent ≈0.82em, descent ≈0.22em):
-       the box must contain the glyphs, and the 1.2em shadow copy must start
-       fully below it — shrinking either one crops the wordmark. */
-    line-height: 1.16;
+    align-items: center;
+    gap: 0.5em;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--paper);
   }
-  .roll-track {
-    display: inline-flex;
+  .bracket::before,
+  .bracket::after {
+    color: var(--muted-foreground);
+    transition: transform 0.4s var(--ease-out-expo), color 0.3s;
   }
-  .roll-char {
-    display: inline-block;
-    white-space: pre;
-    text-shadow: 0 1.2em currentColor;
-    transition: transform 0.55s cubic-bezier(0.76, 0, 0.24, 1);
-    transition-delay: calc(var(--ri, 0) * 0.022s);
+  .bracket::before { content: "["; }
+  .bracket::after { content: "]"; }
+  .bracket:hover::before,
+  .bracket:focus-visible::before {
+    transform: translateX(-4px);
+    color: var(--signal);
   }
-  [data-roll]:hover .roll-char,
-  [data-roll]:focus-visible .roll-char {
-    transform: translateY(-1.2em);
-  }
-
-  /* Metallic display text. A silver ramp clipped to the glyphs, tinted per
-     tool through --tint; --shine is the specular's position and is scrubbed
-     by ScrollTrigger, so the shine travels as the name crosses the viewport.
-     The ramp runs deep shadow → tint → white and back, so the metal reads
-     heavy, not a thin wash. */
-  .metal-text {
-    --shine: 0.5;
-    --tint: #cdd4dc;
-    /* Two layers, both clipped to the glyphs. The top one is a soft tinted
-       band that drifts on its own clock, so the metal keeps living between
-       scroll shines; the ramp beneath is the struck surface — deep cold
-       shadow, the tool's own tint carrying the mid, a hard white specular.
-       More tint in every stop than before: the section reads as colored
-       metal, not grey with a label. */
-    background-image:
-      linear-gradient(
-        115deg,
-        transparent 22%,
-        color-mix(in oklch, var(--tint) 36%, transparent) 42%,
-        transparent 62%
-      ),
-      linear-gradient(
-        100deg,
-        color-mix(in oklch, var(--tint) 32%, #0b0e14) 0%,
-        color-mix(in oklch, var(--tint) 60%, #232935) calc(var(--shine) * 100% - 34%),
-        color-mix(in oklch, var(--tint) 88%, #e9eff7) calc(var(--shine) * 100% - 10%),
-        #ffffff calc(var(--shine) * 100%),
-        color-mix(in oklch, var(--tint) 82%, #dfe9f4) calc(var(--shine) * 100% + 8%),
-        color-mix(in oklch, var(--tint) 56%, #1c212b) calc(var(--shine) * 100% + 30%),
-        color-mix(in oklch, var(--tint) 40%, #10141c) 100%
-      );
-    background-size: 260% 100%, 100% 100%;
-    background-position: -80% 0, 0 0;
-    animation: metal-drift 9s ease-in-out infinite alternate;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    /* The glow behind the shine: a shadow of the glyphs in the tool's tint.
-       Shadows render behind transparent text, so this reads as emission.
-       Routed through --metal-glow so variants can put it out — a literal
-       text-shadow:none override gets eaten by the color-mix rule splitting. */
-    --metal-glow: color-mix(in oklch, var(--tint) 38%, transparent);
-    text-shadow: 0 0 44px var(--metal-glow);
-  }
-  /* The hero wears the same metal but lit for readability: over a photograph
-     the ramp's floor can't drop to near-black, so every dark stop is lifted
-     to a mid steel. No emission glow either — at hero scale the overlapping
-     shadows fuse into a grey slab behind the lines. */
-  .metal-bright {
-    --metal-glow: transparent;
-    background-image:
-      linear-gradient(
-        115deg,
-        transparent 22%,
-        color-mix(in oklch, var(--tint) 30%, transparent) 42%,
-        transparent 62%
-      ),
-      linear-gradient(
-        100deg,
-        color-mix(in oklch, var(--tint) 72%, #6a7482) 0%,
-        color-mix(in oklch, var(--tint) 84%, #97a2b1) calc(var(--shine) * 100% - 34%),
-        color-mix(in oklch, var(--tint) 92%, #e9eff7) calc(var(--shine) * 100% - 10%),
-        #ffffff calc(var(--shine) * 100%),
-        color-mix(in oklch, var(--tint) 90%, #dfe9f4) calc(var(--shine) * 100% + 8%),
-        color-mix(in oklch, var(--tint) 78%, #7d8896) calc(var(--shine) * 100% + 30%),
-        color-mix(in oklch, var(--tint) 70%, #5f6975) 100%
-      );
-  }
-  @keyframes metal-drift {
-    from {
-      background-position: -80% 0, 0 0;
-    }
-    to {
-      background-position: 180% 0, 0 0;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .metal-text {
-      animation: none;
-    }
+  .bracket:hover::after,
+  .bracket:focus-visible::after {
+    transform: translateX(4px);
+    color: var(--signal);
   }
 
-  /* Terminal caret trailing the headline — a coder's cursor. Drawn as a bar
-     rather than a "|" glyph (the mono face has none), it blinks only when
-     motion is welcome. */
-  .hero-caret {
-    display: inline-block;
-    width: 0.07em;
-    height: 0.72em;
-    margin-left: 0.1em;
-    vertical-align: baseline;
-    background: var(--primary);
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .hero-caret {
-      animation: hero-caret-blink 1.05s steps(1) infinite;
-    }
-  }
-  @keyframes hero-caret-blink {
-    0%,
-    50% {
-      opacity: 1;
-    }
-    50.01%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  /* ── The tools wheel ─────────────────────────────────────────────────────
-     valeran.eu's MWG040 mechanics, verified against its live CSS/JS: a 400vh
-     pin-height whose 100vh stage is pinned; two 80vw circles hang off either
-     side of center (labels' circle at right: 52%, marks' at left: 52%); each
-     item is the full circle box rotated i × 14.5°, its child counter-rotated
-     to stay level, and scroll scrubs the whole circle from just before the
-     first item enters to just after the last one leaves. */
-  .wheel-pin {
-    height: 320vh;
-  }
-  .wheel-stage {
+  /* The one filled control. Phosphor slab; on hover a second slab wipes up
+     from below, so the label reads as being re-printed. */
+  .slab {
     position: relative;
-    height: 100vh;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.9rem;
     overflow: hidden;
+    padding: 1.05rem 1.4rem;
+    background: var(--signal);
+    color: var(--primary-foreground);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    isolation: isolate;
   }
-  .wheel-circle {
-    position: absolute;
-    top: 50%;
-    width: 80vw;
-    height: 80vw;
-    transform: translate(0, -50%);
-  }
-  .wheel-circle-left {
-    right: 52%;
-  }
-  .wheel-circle-right {
-    left: 52%;
-  }
-  .wheel-item {
+  .slab::before {
+    content: "";
     position: absolute;
     inset: 0;
+    z-index: -1;
+    background: var(--paper);
+    transform: translateY(101%);
+    transition: transform 0.55s var(--ease-out-expo);
   }
-  .wheel-label {
-    position: absolute;
-    top: 100%;
-    right: 50%;
-    transform: translate(0, -50%);
-    transform-origin: 100%;
-    white-space: nowrap;
-    font-size: 4.6vw;
-    line-height: 1;
-  }
-  .wheel-media {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    width: 15vw;
-    aspect-ratio: 1;
-    transform: translate(0, -50%);
-    transform-origin: 0;
-    filter: drop-shadow(0 4px 24px rgb(0 0 0 / 0.4));
-  }
-  @media (max-width: 991px) {
-    .wheel-pin {
-      height: 280vh;
-    }
-    .wheel-circle {
-      width: 160vw;
-      height: 160vw;
-    }
-    .wheel-label {
-      font-size: 8vw;
-    }
-    .wheel-media {
-      width: 30vw;
-    }
+  .slab:hover::before,
+  .slab:focus-visible::before {
+    transform: translateY(0);
   }
 
-  /* ── The light pool ──────────────────────────────────────────────────────
-     The texture that rides the whole page, opaque sections included: a slow
-     drifting bloom. Blended screen so it only ever adds light; the .noise
-     grain above it supplies the tooth. Deliberately alive under reduced
-     motion too — the owner wants the texture everywhere. (No cursor
-     follower: a bare tracking circle over opaque sections read as a smudge,
-     and the owner cut it.) */
-  .light-pool {
+  /* The install command as an object: a terminal slot with a copy affordance. */
+  .shell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.2rem;
+    border: 1px solid var(--input);
+    background: rgb(8 9 10 / 0.6);
+    backdrop-filter: blur(8px);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--paper);
+    transition: border-color 0.3s;
+  }
+  .shell:hover,
+  .shell:focus-visible {
+    border-color: var(--signal);
+  }
+
+  /* Tiny live dot. */
+  .pulse {
+    position: relative;
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--signal);
+  }
+  .pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--signal);
+    animation: pulse-ring 1.8s var(--ease-out-expo) infinite;
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(3.2); opacity: 0; }
+  }
+
+  /* Endless marquee; the track holds two copies and slides one length. */
+  .marquee {
+    display: flex;
+    width: max-content;
+    animation: marquee var(--marquee-dur, 38s) linear infinite;
+  }
+  @keyframes marquee {
+    to { transform: translateX(-50%); }
+  }
+
+  /* Custom cursor: a crosshair square in difference blend. Fine pointers only. */
+  .cursor {
     position: fixed;
-    inset: 0;
-    z-index: 60;
-    pointer-events: none;
-    mix-blend-mode: screen;
-  }
-  .light-pool::before {
-    content: "";
-    position: absolute;
-    inset: -30%;
-    background:
-      radial-gradient(
-        46% 38% at 30% 34%,
-        color-mix(in oklch, var(--primary) 11%, transparent),
-        transparent 70%
-      ),
-      radial-gradient(
-        40% 34% at 74% 72%,
-        color-mix(in oklch, var(--ember) 7%, transparent),
-        transparent 70%
-      );
-    animation: pool-drift 26s ease-in-out infinite alternate;
-  }
-  @keyframes pool-drift {
-    from {
-      transform: translate3d(-4%, -2%, 0) scale(1);
-    }
-    to {
-      transform: translate3d(4%, 3%, 0) scale(1.12);
-    }
-  }
-
-
-  /* ── Finale in-fall ──────────────────────────────────────────────────────
-     The finale's backdrop is a canvas (finale-infall.tsx): the hero's dust
-     streaming into the presence card. This bloom is the light the dust lands
-     in — and the whole backdrop when the canvas doesn't run (reduced motion,
-     JS off). Centred on the card, sized in vmin so it outgrows the card
-     without dominating a phone; the finale block is overflow-hidden. */
-  .infall-bloom {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: min(78vmin, 620px);
-    aspect-ratio: 1;
-    transform: translate(-50%, -50%);
-    border-radius: 9999px;
-    pointer-events: none;
-    background: radial-gradient(
-      closest-side,
-      color-mix(in oklch, var(--primary) 9%, transparent),
-      transparent 72%
-    );
-  }
-
-  /* ── Scroll cue ──────────────────────────────────────────────────────────
-     The hairline above the hero's scroll line, with a dot that keeps falling:
-     the page's one standing invitation to move. Fades at both ends of the
-     travel so the loop never reads as a tick. */
-  .cue-line {
-    position: relative;
-    width: 1px;
-    height: 56px;
-    background: color-mix(in oklch, var(--foreground) 20%, transparent);
-  }
-  .cue-line::before {
-    content: "";
-    position: absolute;
-    left: 50%;
+    left: 0;
     top: 0;
-    width: 3px;
-    height: 3px;
-    margin-left: -1.5px;
-    border-radius: 9999px;
-    background: var(--primary);
-    box-shadow: 0 0 6px color-mix(in oklch, var(--primary) 70%, transparent);
-    animation: cue-fall 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    z-index: 100;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    pointer-events: none;
+    mix-blend-mode: difference;
+    border: 1px solid #fff;
+    transition: width 0.35s var(--ease-out-expo), height 0.35s var(--ease-out-expo),
+      margin 0.35s var(--ease-out-expo), background-color 0.25s;
   }
-  @keyframes cue-fall {
-    0% {
-      transform: translateY(-3px);
-      opacity: 0;
-    }
-    14% {
-      opacity: 1;
-    }
-    76% {
-      opacity: 1;
-    }
-    100% {
-      transform: translateY(53px);
-      opacity: 0;
-    }
+  .cursor[data-hover] {
+    width: 44px;
+    height: 44px;
+    margin: -22px 0 0 -22px;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .cue-line::before {
-      animation: none;
-      opacity: 0;
-    }
+  .cursor[data-down] {
+    background: #fff;
+  }
+  .cursor__coords {
+    position: absolute;
+    left: calc(100% + 8px);
+    top: calc(100% + 4px);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: #fff;
+    white-space: nowrap;
   }
 
-  /* Static fallbacks for the WebGL stage. While the stage is live it sets
-     data-landing-gl="on" on <html>; anything marked data-gl-fallback fades
-     away and the canvas takes over. No WebGL or reduced motion → the
-     attribute never appears and the fallbacks simply are the page. */
-  html[data-landing-gl="on"] [data-gl-fallback] {
-    opacity: 0;
-    transition: opacity 0.6s ease;
-  }
+  /* ── Panels (leaderboard account menu) ───────────────────────────────── */
 
-  /* Cinematic frame over the hero: a radial vignette that pulls the eye to
-     the figure, plus a whisper of cold light settling from the top. Rides
-     the same scroll fade as the scrim. */
-  .hero-grade {
-    background:
-      radial-gradient(
-        120% 90% at 50% 34%,
-        transparent 52%,
-        oklch(0.06 0.014 252 / 0.55) 100%
-      ),
-      linear-gradient(180deg, oklch(0.4 0.03 235 / 0.1), transparent 26%);
-  }
-
-  /* Text-contrast scrim over the hero image's lower half. */
-  .scrim-b {
-    background: linear-gradient(
-      180deg,
-      transparent,
-      color-mix(in oklch, var(--background) 55%, transparent) 55%,
-      color-mix(in oklch, var(--background) 92%, transparent)
-    );
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .link-underline::after {
-      transition: none;
-    }
-    .roll-char {
-      transition: none;
-    }
-    [data-roll]:hover .roll-char,
-    [data-roll]:focus-visible .roll-char {
-      transform: none;
-    }
-  }
-
-  /* ── Dashboard ───────────────────────────────────────────────────────── */
-
-  /* Frosted glass for the personal dashboard. Tinted toward the card surface so
-     it still reads on the black particle field, with the tier accent bled into
-     one corner. */
   .glass-panel {
     background:
-      radial-gradient(
-        130% 90% at calc(var(--spot-x, 80) * 1%) calc(var(--spot-y, 0) * 1%),
-        color-mix(in oklch, var(--tier, var(--primary)) 16%, transparent),
-        transparent 60%
-      ),
-      color-mix(in oklch, var(--card) 64%, transparent);
-    backdrop-filter: blur(22px) saturate(150%);
-    -webkit-backdrop-filter: blur(22px) saturate(150%);
+      linear-gradient(180deg, color-mix(in oklch, var(--tier, var(--signal)) 9%, transparent), transparent 42%),
+      rgb(15 16 18 / 0.86);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
   }
 
-  /* Accessibility fallback: users who ask for less transparency get an opaque
-     card, no blur. */
-  @media (prefers-reduced-transparency: reduce) {
-    .glass-panel {
-      background: var(--card);
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-    }
-  }
-
-  /* Sign in: the single primary action for a signed-out visitor, so it carries
-     the one interface accent as a solid pill. Shaped to match the signed-in
-     avatar pill it replaces (same height, same full radius) so the control
-     swaps in place without the layout shifting. */
   .signin-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    height: 2.25rem;
-    padding: 0 1rem;
-    border-radius: 9999px;
-    font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-    color: var(--primary-foreground);
-    background: var(--primary);
-    /* A hairline top highlight reads as a lit surface, not a flat fill. */
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.25),
-      0 8px 22px -14px oklch(0 0 0 / 0.9);
-    transition:
-      background-color 180ms ease-out,
-      box-shadow 180ms ease-out,
-      transform 120ms ease-out;
+    gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: background-color 0.25s, transform 0.2s;
   }
-
   .signin-btn:hover {
-    background: color-mix(in oklch, var(--primary) 92%, white);
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.3),
-      0 0 24px -8px color-mix(in oklch, var(--primary) 70%, transparent),
-      0 8px 22px -14px oklch(0 0 0 / 0.9);
+    background: var(--signal);
   }
-
   .signin-btn:active {
     transform: translateY(1px);
-    box-shadow:
-      inset 0 1px 2px oklch(0 0 0 / 0.25),
-      0 4px 12px -10px oklch(0 0 0 / 0.9);
   }
-
-  .signin-btn:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  /* Pending: the click has fired and the browser is on its way to Discord. Dim
-     the fill, freeze interaction, and show a spinner so the wait reads as
-     progress rather than a dead button. */
   .signin-btn[data-pending] {
     pointer-events: none;
-    background: color-mix(in oklch, var(--primary) 55%, var(--card));
-  }
-
-  .signin-btn__spinner {
-    display: none;
-    width: 0.85em;
-    height: 0.85em;
-    border-radius: 9999px;
-    border: 2px solid color-mix(in oklch, var(--primary-foreground) 35%, transparent);
-    border-top-color: var(--primary-foreground);
-    animation: signin-spin 0.6s linear infinite;
-  }
-
-  .signin-btn[data-pending] .signin-btn__spinner {
-    display: inline-block;
-  }
-
-  @keyframes signin-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  /* Reduced motion drops the hover lift, the press travel, and the spin. The
-     pending state still reads: dimmed fill plus a static ring beside the label. */
-  @media (prefers-reduced-motion: reduce) {
-    .signin-btn {
-      transition: background-color 180ms ease-out;
-    }
-    .signin-btn:active {
-      transform: none;
-    }
-    .signin-btn__spinner {
-      animation: none;
-    }
-  }
-}
-
-/* ── Aurora ──────────────────────────────────────────────────────────────
-   Kept top-level (outside @layer components) on purpose: Tailwind v4
-   tree-shakes @layer rules by usage detection and was dropping these, so
-   the curtain lives unlayered where it's always emitted.
-   The wibify-style curtain of light shafts. Lifted out of the buried z-0
-   WebGL background — where the opaque sections stacked over it hid the
-   beams entirely — into its own fixed, screen-blended layer that rides the
-   whole page, opaque sections included, exactly like .light-pool. Screen
-   blend only ever adds light, so section text stays legible. The cursor
-   leans the whole curtain a few px through --aurora-x/y (set in
-   landing.tsx); each beam also sways on its own slow loop, so the curtain
-   breathes rather than standing still. Sits below the header (z-50) and
-   the light-pool bloom (z-60), above all scrolled content. */
-.aurora {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  pointer-events: none;
-  overflow: hidden;
-  mix-blend-mode: screen;
-  transform: translate3d(var(--aurora-x, 0px), var(--aurora-y, 0px), 0);
-}
-.aurora__beam {
-  position: absolute;
-  top: -25%;
-  height: 150%;
-  filter: blur(46px);
-  will-change: transform, opacity;
-}
-.aurora__beam--1 {
-  left: 0%;
-  width: 26vw;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--primary) 36%, transparent),
-    transparent 70%
-  );
-  animation: aurora-1 23s ease-in-out infinite;
-}
-.aurora__beam--2 {
-  left: 28%;
-  width: 18vw;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--primary) 26%, transparent),
-    transparent 66%
-  );
-  animation: aurora-2 29s ease-in-out infinite;
-}
-.aurora__beam--3 {
-  left: 52%;
-  width: 32vw;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--primary) 32%, transparent),
-    transparent 72%
-  );
-  animation: aurora-3 26s ease-in-out infinite;
-}
-.aurora__beam--4 {
-  left: 78%;
-  width: 22vw;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--ember) 22%, transparent),
-    transparent 64%
-  );
-  animation: aurora-4 32s ease-in-out infinite;
-}
-@keyframes aurora-1 {
-  0%,
-  100% {
-    transform: translateX(-4%) skewX(-7deg);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translateX(5%) skewX(-3deg);
     opacity: 0.8;
   }
-}
-@keyframes aurora-2 {
-  0%,
-  100% {
-    transform: translateX(3%) skewX(5deg);
-    opacity: 0.4;
+  .signin-btn__spinner {
+    display: none;
+    width: 8px;
+    height: 8px;
+    background: currentColor;
   }
-  50% {
-    transform: translateX(-4%) skewX(2deg);
-    opacity: 0.7;
+  .signin-btn[data-pending] .signin-btn__spinner {
+    display: inline-block;
+    animation: signin-step 0.6s steps(2) infinite;
   }
-}
-@keyframes aurora-3 {
-  0%,
-  100% {
-    transform: translateX(-3%) skewX(-9deg);
-    opacity: 0.45;
-  }
-  50% {
-    transform: translateX(4%) skewX(-5deg);
-    opacity: 0.72;
+  @keyframes signin-step {
+    50% { opacity: 0.15; }
   }
 }
-@keyframes aurora-4 {
-  0%,
-  100% {
-    transform: translateX(4%) skewX(6deg);
-    opacity: 0.32;
-  }
-  50% {
-    transform: translateX(-3%) skewX(3deg);
-    opacity: 0.55;
-  }
-}
+
 @media (prefers-reduced-motion: reduce) {
-  .aurora__beam {
-    animation: none;
-    opacity: 0.5;
+  .grain,
+  .marquee,
+  .pulse::after,
+  .caret {
+    animation: none !important;
   }
 }

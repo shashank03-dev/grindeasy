@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
 
 export const metadata: Metadata = {
   title: "grindeasy · privacy policy",
@@ -9,13 +11,18 @@ export const metadata: Metadata = {
 
 const CONTACT_EMAIL = "shashankgowda3162@gmail.com";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// Each section is a row on the page grid: a numbered heading in the left
+// columns, the text in a readable measure on the right.
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-12">
-      <h2 className="font-display text-2xl uppercase tracking-[-0.01em] text-foreground sm:text-3xl">
-        {title}
-      </h2>
-      <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-muted-foreground">
+    <section className="grid gap-4 border-t border-line py-10 md:grid-cols-12 md:gap-10">
+      <div className="md:col-span-4">
+        <p className="font-pixel text-[15px] text-signal">{String(n).padStart(2, "0")}</p>
+        <h2 className="mt-3 text-[22px] font-medium leading-tight tracking-[-0.02em] text-paper md:text-[26px]">
+          {title}
+        </h2>
+      </div>
+      <div className="max-w-[64ch] space-y-4 text-[15px] leading-relaxed text-muted-foreground md:col-span-7 md:col-start-6 [&_code]:text-paper [&_strong]:text-paper">
         {children}
       </div>
     </section>
@@ -24,32 +31,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function PrivacyPage() {
   return (
-    <main className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-24 pt-14">
-      <header className="mb-4">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          <span aria-hidden className="text-primary">
-            ▲
-          </span>{" "}
-          <Link href="/" className="transition-colors hover:text-foreground">
-            grindeasy
-          </Link>
-        </p>
-        <h1 className="mt-5 font-display text-5xl uppercase leading-[0.92] tracking-[-0.01em] text-foreground sm:text-6xl">
-          Privacy policy
-        </h1>
-        <p className="mt-4 font-mono text-[13px] text-muted-foreground/70">
-          Last updated: July 17, 2026
-        </p>
-      </header>
+    <>
+      <SiteHeader />
+      <main className="relative z-10 w-full px-4 pb-24 pt-28 md:px-10 md:pt-36">
+        <header className="grid gap-8 pb-14 md:grid-cols-12">
+          <div className="md:col-span-8">
+            <p className="label text-muted-foreground">Privacy policy</p>
+            <h1 className="display mt-6 text-[clamp(3rem,8vw,8.5rem)] text-paper">
+              It never reads your code.
+            </h1>
+          </div>
+          <div className="flex flex-col justify-end gap-4 md:col-span-4">
+            <p className="label text-muted-foreground/80">Last updated · July 17, 2026</p>
+            <p className="max-w-[46ch] text-[15px] leading-relaxed text-muted-foreground">
+              grindeasy is a local agent that shows which AI coding tools you use. It is local-first
+              by design: by default nothing leaves your machine, and when you opt in to the
+              leaderboard, the only thing that ever syncs is tool names and active minutes. This
+              page describes exactly what is collected, by whom, and what never is.
+            </p>
+          </div>
+        </header>
 
-      <p className="mt-8 max-w-[65ch] text-[15px] leading-relaxed text-muted-foreground">
-        grindeasy is a local agent that shows which AI coding tools you use. It is local-first
-        by design: by default nothing leaves your machine, and when you opt in to the
-        leaderboard, the only thing that ever syncs is tool names and active minutes. This
-        page describes exactly what is collected, by whom, and what never is.
-      </p>
-
-      <Section title="The local agent">
+      <Section n={1} title="The local agent">
         <p>
           The agent decides a tool is &ldquo;active&rdquo; from one signal only: the
           modification time of that tool&rsquo;s own session files. It never opens or reads
@@ -60,7 +63,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="What syncs if you join the leaderboard (opt-in)">
+      <Section n={2} title="What syncs if you join the leaderboard (opt-in)">
         <p>If you link an account, each sync from your machine sends only:</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>tool identifiers (e.g. &ldquo;claude-code&rdquo;, &ldquo;cursor&rdquo;)</li>
@@ -76,7 +79,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="What we never collect">
+      <Section n={3} title="What we never collect">
         <p>
           Your code, prompts, AI responses, file names, file paths, API keys and auth tokens
           never leave your machine — the agent has no code path that reads them. The website
@@ -84,7 +87,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="What is public">
+      <Section n={4} title="What is public">
         <p>
           The leaderboard displays your Discord username and avatar alongside your rank,
           tier, plan tag and active time. Joining the board means agreeing to that being
@@ -92,7 +95,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="The Slack integration">
+      <Section n={5} title="The Slack integration">
         <p>
           Connecting Slack uses OAuth with the{" "}
           <code className="font-mono">incoming-webhook</code> scope only: you pick a single
@@ -105,7 +108,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Cookies">
+      <Section n={6} title="Cookies">
         <p>
           We set a session cookie when you sign in and short-lived (10-minute) state cookies
           during the OAuth redirect. That is all — no analytics cookies, no third-party
@@ -113,11 +116,11 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Retention and deletion">
+      <Section n={7} title="Retention and deletion">
         <p>
           Leaderboard data is kept while your account exists. To delete your account and all
           associated data, or to revoke a paired device, email{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline underline-offset-4">
+          <a href={`mailto:${CONTACT_EMAIL}`} className="text-paper underline decoration-signal underline-offset-4">
             {CONTACT_EMAIL}
           </a>{" "}
           from a way that proves control of the Discord account, and we will remove it.
@@ -129,22 +132,24 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Changes and contact">
+      <Section n={8} title="Changes and contact">
         <p>
           If this policy changes materially, the &ldquo;last updated&rdquo; date above
           changes with it. Questions:{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline underline-offset-4">
+          <a href={`mailto:${CONTACT_EMAIL}`} className="text-paper underline decoration-signal underline-offset-4">
             {CONTACT_EMAIL}
           </a>
           .
         </p>
       </Section>
 
-      <p className="mt-16 text-xs text-muted-foreground/70">
-        <Link href="/" className="transition-colors hover:text-foreground">
-          ← back to grindeasy
-        </Link>
-      </p>
-    </main>
+        <p className="border-t border-line pt-10">
+          <Link href="/" className="bracket">
+            Back to grindeasy
+          </Link>
+        </p>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

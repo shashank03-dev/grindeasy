@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ParticleField } from "@/components/particle-field";
+import { BoardField } from "@/components/site/board-field";
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
 import { PlanBadge, TierBadge } from "@/components/tier-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserMenu } from "@/components/user-menu";
@@ -101,60 +103,68 @@ export default async function LeaderboardPage({
 }) {
   const range: Range = (await searchParams).range === "weekly" ? "weekly" : "all";
   const [entries, card] = await Promise.all([getRangeBoard(range), getUserCard(range)]);
+  const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
 
   return (
     <>
-      {/* Whole-page background: black when signed out, tier-colored particles
-          taking birth once the user is authenticated. Sits behind everything. */}
-      <ParticleField
-        signedIn={card !== null}
-        tier={card?.tierName ?? null}
-        online={card?.isOnline ?? false}
-      />
+      {/* The same dither field as the landing, held on one pose. Signed in,
+          it turns into your tier's diamond in your tier's color. */}
+      <BoardField tier={card?.tierName ?? null} online={card?.isOnline ?? false} />
+      <SiteHeader slot={<UserMenu data={card} />} />
 
-      {/* Account control, pinned above the board and the particle field. */}
-      <div className="fixed right-4 top-4 z-30">
-        <UserMenu data={card} />
-      </div>
+      <main className="relative z-10 w-full px-4 pb-28 pt-28 md:px-10 md:pt-36">
+        <header className="grid gap-10 md:grid-cols-12 md:items-end">
+          <div className="md:col-span-8">
+            <p className="label flex items-center gap-3 text-muted-foreground">
+              <span className="pulse" /> The board · live
+            </p>
+            <h1 className="display mt-6 max-w-[14ch] text-[clamp(3rem,7.4vw,8rem)] text-paper">
+              Time actually spent coding with AI.
+            </h1>
+          </div>
+          <div className="flex flex-col gap-6 border border-line bg-ink/75 p-5 backdrop-blur-md md:col-span-4">
+            <p className="max-w-[44ch] text-[15px] leading-relaxed text-muted-foreground">
+              Active time only, measured while a tool is working. Combos reward two tools in the
+              same five-minute window. Your plan shows for context and never changes your score.
+            </p>
+            <code className="shell self-start">
+              <span className="text-signal">$</span> npx grindeasy
+            </code>
+          </div>
+        </header>
 
-      {/* Faint phosphor bleed from the top — the only ambient light on the surface. */}
-      <main className="relative z-10 mx-auto w-full max-w-4xl px-6 pb-24 pt-14 [background-image:radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]">
-      <header className="mb-10">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          <span aria-hidden className="text-primary">▲</span> grindeasy
+        <div className="mt-16 flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
+          <dl className="flex gap-10">
+            <div>
+              <dt className="label text-muted-foreground">Players</dt>
+              <dd className="mt-2 font-dot text-[28px] leading-none tabular-nums text-paper">
+                {entries.length}
+              </dd>
+            </div>
+            <div>
+              <dt className="label text-muted-foreground">
+                {range === "weekly" ? "Hours this week" : "Hours logged"}
+              </dt>
+              <dd className="mt-2 font-dot text-[28px] leading-none tabular-nums text-paper">
+                {Math.round(totalHours).toLocaleString("en-US")}
+              </dd>
+            </div>
+          </dl>
+          <RangeToggle range={range} />
+        </div>
+
+        {entries.length === 0 ? <EmptyBoard range={range} /> : <Board entries={entries} />}
+
+        <p className="label mt-6 flex flex-wrap justify-between gap-2 text-muted-foreground/70">
+          <span>
+            {range === "weekly"
+              ? "This week's active time, in UTC. Resets every Monday."
+              : "Synced every 5 minutes. The agent self-reports; the server clamps."}
+          </span>
+          <span>Top 100 · ranked by XP</span>
         </p>
-        {/* Condensed display, set large and tight — the same voice as the landing
-            hero, so arriving here reads as the same surface. */}
-        <h1 className="mt-5 max-w-[16ch] font-display text-5xl uppercase leading-[0.92] tracking-[-0.01em] text-foreground sm:text-7xl">
-          Time actually spent coding with AI
-        </h1>
-        <p className="mt-5 max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
-          Active time only, measured while a tool is working. Combos reward using two tools in the
-          same five-minute window. Your plan is shown for context and never changes your score.
-        </p>
-        <code className="mt-7 inline-flex items-center gap-2.5 rounded-lg border border-input bg-card px-3.5 py-2.5 font-mono text-[13px] text-foreground">
-          <span className="text-primary">$</span> npx grindeasy
-        </code>
-      </header>
-
-      <div className="mb-3 flex justify-end">
-        <RangeToggle range={range} />
-      </div>
-
-      {entries.length === 0 ? (
-        <EmptyBoard range={range} />
-      ) : (
-        <Board entries={entries} />
-      )}
-
-      <p className="mt-5 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground/70">
-        <span>
-          {range === "weekly"
-            ? "This week's active time, in UTC. Resets every Monday."
-            : "Synced every 5 minutes. The agent self-reports; the server clamps."}
-        </span>
-      </p>
-    </main>
+      </main>
+      <SiteFooter />
     </>
   );
 }
@@ -163,12 +173,11 @@ export default async function LeaderboardPage({
 // is a navigation, not client state — the URL stays shareable and both the board
 // and the personal card re-render off the same param.
 function RangeToggle({ range }: { range: Range }) {
-  const base =
-    "rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest transition-colors";
-  const on = "bg-primary/15 text-primary";
-  const off = "text-muted-foreground/70 hover:text-foreground";
+  const base = "label px-3 py-2 transition-colors";
+  const on = "bg-paper text-ink";
+  const off = "text-muted-foreground hover:text-paper";
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-lg border border-input bg-card p-0.5">
+    <div className="inline-flex items-center border border-input p-0.5">
       <Link href="/leaderboard?range=weekly" className={cn(base, range === "weekly" ? on : off)}>
         This week
       </Link>
@@ -181,131 +190,116 @@ function RangeToggle({ range }: { range: Range }) {
 
 function Board({ entries }: { entries: BoardEntry[] }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-input bg-card shadow-[0_24px_60px_-30px_rgba(0,0,0,0.7)]">
-      {/* Title bar — the board framed as a running program, not a web section. */}
-      <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-4 py-3">
-        <p className="text-[13px] text-muted-foreground">
-          <span className="font-semibold text-foreground">Leaderboard</span> · top 100 · ranked by
-          XP
-        </p>
-        <span className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-primary">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60 motion-reduce:hidden" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-          </span>
-          live
-        </span>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[14.5px]">
-          <thead>
-            <tr className="border-b border-border text-[11px] uppercase tracking-[0.1em] text-muted-foreground/70">
-              <th className="w-[68px] px-4 py-3 text-left font-semibold">#</th>
-              <th className="px-4 py-3 text-left font-semibold">Developer</th>
-              <th className="px-4 py-3 text-left font-semibold">Tier</th>
-              <th className="px-4 py-3 text-left font-semibold">Plan</th>
-              <th className="px-4 py-3 text-right font-semibold">Active</th>
-              <th className="px-4 py-3 text-right font-semibold">Combos</th>
-              <th className="px-4 py-3 text-right font-semibold">XP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => {
-              const isTop = entry.rank === 1;
-              return (
-                <tr
-                  key={entry.discordId}
-                  className={
-                    isTop
-                      ? "border-b border-border bg-[linear-gradient(90deg,color-mix(in_oklch,var(--primary)_13%,transparent),transparent_65%)] transition-colors last:border-0"
-                      : "border-b border-border transition-colors last:border-0 hover:bg-secondary/50"
-                  }
-                >
-                  {/* Mono rank numerals — a fixed-width ordered column, read as
-                      data rather than decoration. */}
-                  <td
-                    className={
-                      isTop
-                        ? "px-4 py-3.5 font-mono text-[17px] tabular-nums text-primary shadow-[inset_2px_0_0_var(--primary)]"
-                        : "px-4 py-3.5 font-mono text-[17px] tabular-nums text-muted-foreground"
-                    }
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] border-collapse">
+        <thead>
+          <tr className="label border-b border-line text-left text-[10.5px] text-muted-foreground">
+            <th className="w-[84px] py-4 pr-4 font-normal">Rank</th>
+            <th className="py-4 pr-4 font-normal">Developer</th>
+            <th className="py-4 pr-4 font-normal">Tier</th>
+            <th className="py-4 pr-4 font-normal">Plan</th>
+            <th className="py-4 pr-4 text-right font-normal">Active</th>
+            <th className="py-4 pr-4 text-right font-normal">Combos</th>
+            <th className="py-4 text-right font-normal">XP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => {
+            const isTop = entry.rank === 1;
+            const podium = entry.rank <= 3;
+            return (
+              <tr
+                key={entry.discordId}
+                className={cn(
+                  "group border-b border-line transition-colors hover:bg-paper/[0.03]",
+                  isTop && "bg-[linear-gradient(90deg,rgb(156_242_127/0.09),transparent_60%)]",
+                )}
+              >
+                {/* Pixel rank numerals — a fixed-width ordered column, read as
+                    data. The podium prints at full size. */}
+                <td className="py-4 pr-4 align-middle">
+                  <span
+                    className={cn(
+                      "font-pixel tabular-nums leading-none",
+                      podium ? "text-[30px]" : "text-[20px] text-muted-foreground",
+                      isTop && "text-signal",
+                      podium && !isTop && "text-paper",
+                    )}
                   >
                     {formatRank(entry.rank)}
-                  </td>
+                  </span>
+                </td>
 
-                  <td className="px-4 py-3.5">
-                    <span className="flex items-center gap-3">
-                      {/* Avatar takes no size prop; sizing is Tailwind classes. */}
-                      <Avatar className="h-7 w-7 rounded-lg">
-                        {entry.avatarUrl ? <AvatarImage src={entry.avatarUrl} alt="" /> : null}
-                        <AvatarFallback className="rounded-lg bg-secondary text-[10px] text-muted-foreground">
-                          {entry.username.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium tracking-[-0.005em] text-foreground">
-                        {entry.username}
-                      </span>
+                <td className="py-4 pr-4">
+                  <span className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8 rounded-none after:rounded-none">
+                      {entry.avatarUrl ? (
+                        <AvatarImage src={entry.avatarUrl} alt="" className="rounded-none" />
+                      ) : null}
+                      <AvatarFallback className="rounded-none bg-secondary font-mono text-[10px] text-muted-foreground">
+                        {entry.username.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-[15px] font-medium tracking-[-0.01em] text-paper">
+                      {entry.username}
                     </span>
-                  </td>
+                  </span>
+                </td>
 
-                  <td className="px-4 py-3.5">
-                    <TierBadge name={entry.tierName} glyph={entry.tierGlyph} />
-                  </td>
+                <td className="py-4 pr-4">
+                  <TierBadge name={entry.tierName} glyph={entry.tierGlyph} />
+                </td>
 
-                  <td className="px-4 py-3.5">
-                    <PlanBadge badge={entry.planBadge} />
-                  </td>
+                <td className="py-4 pr-4">
+                  <PlanBadge badge={entry.planBadge} />
+                </td>
 
-                  {/* Active hours are the loudest data — the unit of the whole product. */}
-                  <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-foreground">
-                    {formatHours(entry.hours)}
-                  </td>
+                {/* Active hours are the loudest data — the unit of the whole product. */}
+                <td className="py-4 pr-4 text-right font-dot text-[20px] tabular-nums text-paper">
+                  {formatHours(entry.hours)}
+                </td>
 
-                  <td className="px-4 py-3.5 text-right tabular-nums text-muted-foreground">
-                    {entry.combos}
-                  </td>
+                <td className="py-4 pr-4 text-right font-mono text-[13px] tabular-nums text-muted-foreground">
+                  {entry.combos}
+                </td>
 
-                  <td
-                    className={
-                      isTop
-                        ? "px-4 py-3.5 text-right font-semibold tabular-nums text-primary"
-                        : "px-4 py-3.5 text-right font-semibold tabular-nums text-foreground"
-                    }
-                  >
-                    {entry.xp.toFixed(1)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                <td
+                  className={cn(
+                    "py-4 text-right font-mono text-[13px] tabular-nums",
+                    isTop ? "text-signal" : "text-paper",
+                  )}
+                >
+                  {entry.xp.toFixed(1)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function EmptyBoard({ range }: { range: Range }) {
-  if (range === "weekly") {
-    return (
-      <div className="rounded-xl border border-dashed border-input px-6 py-16 text-center">
-        <p className="text-sm font-medium text-foreground">
-          No one&apos;s logged time this week yet.
-        </p>
-        <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted-foreground">
-          The week resets every Monday. Code with a tracked tool and you&apos;ll be first on the
-          board.
-        </p>
-      </div>
-    );
-  }
+  const [title, body] =
+    range === "weekly"
+      ? [
+          "No one's logged time this week yet.",
+          "The week resets every Monday. Code with a tracked tool and you'll be first on the board.",
+        ]
+      : ["Nobody has paired an agent yet.", null];
   return (
-    <div className="rounded-xl border border-dashed border-input px-6 py-16 text-center">
-      <p className="text-sm font-medium text-foreground">Nobody has paired an agent yet.</p>
-      <p className="mx-auto mt-2 max-w-[52ch] text-sm text-muted-foreground">
-        Run <code className="text-primary">npx grindeasy</code> in a terminal, then{" "}
-        <code className="text-primary">grindeasy login</code> to claim the first place on this
-        board.
+    <div className="border-b border-line py-24 text-center">
+      <p className="font-pixel text-[clamp(2.4rem,6vw,4.5rem)] leading-none text-paper/90">00</p>
+      <p className="mt-6 text-[15px] text-paper">{title}</p>
+      <p className="mx-auto mt-2 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
+        {body ?? (
+          <>
+            Run <code className="font-mono text-signal">npx grindeasy</code> in a terminal, then{" "}
+            <code className="font-mono text-signal">grindeasy login</code> to claim the first place
+            on this board.
+          </>
+        )}
       </p>
     </div>
   );

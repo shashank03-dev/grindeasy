@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { claimPairRequest, findLivePairRequest } from "@/lib/db/queries";
 import { currentUser } from "@/lib/session";
+import { Cmd, NoticeShell, NoticeText } from "@/components/site/notice-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,11 @@ export default async function PairPage({
   const { code = "", error } = await searchParams;
 
   if (!code) {
-    return <Notice title="No pairing code">Start pairing from your terminal with `grindeasy login`.</Notice>;
+    return (
+      <Notice title="No pairing code">
+        Start pairing from your terminal with <Cmd>grindeasy login</Cmd>.
+      </Notice>
+    );
   }
 
   const user = await currentUser();
@@ -35,7 +40,7 @@ export default async function PairPage({
   if (!request) {
     return (
       <Notice title="That code expired">
-        Pairing codes last ten minutes. Run `grindeasy login` again to get a fresh one.
+        Pairing codes last ten minutes. Run <Cmd>grindeasy login</Cmd> again to get a fresh one.
       </Notice>
     );
   }
@@ -44,58 +49,41 @@ export default async function PairPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-6">
-      <div>
-        <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          <span aria-hidden className="text-primary">▲</span> grindeasy
-        </p>
-        <h1 className="font-heading text-3xl font-normal tracking-[-0.01em] [font-optical-sizing:auto] [font-variation-settings:'opsz'_144]">
-          Authorize this device
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Signed in as <span className="text-foreground">{user.username}</span>. Confirm the code
-          shown in your terminal matches.
-        </p>
-      </div>
+    <NoticeShell eyebrow="Pair a device" title="Authorize this device">
+      <NoticeText>
+        Signed in as <span className="text-paper">{user.username}</span>. Confirm the code shown in
+        your terminal matches.
+      </NoticeText>
 
-      <div className="rounded-lg border border-input bg-card px-6 py-5 text-center font-mono text-3xl tracking-[0.25em] text-foreground">
+      <div className="border border-input bg-card/80 px-6 py-6 text-center font-pixel text-[clamp(2.2rem,9vw,3.2rem)] leading-none tracking-[0.18em] text-paper">
         {code.toUpperCase()}
       </div>
 
       {error ? (
-        <p className="text-sm text-destructive">
+        <p className="font-mono text-[13px] text-destructive">
           That code could not be claimed. It may have expired.
         </p>
       ) : null}
 
       <form action={approve}>
         <input type="hidden" name="code" value={code} />
-        <button
-          type="submit"
-          className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-primary-foreground transition hover:opacity-90"
-        >
-          Authorize
+        <button type="submit" className="slab w-full justify-center">
+          Authorize <span aria-hidden>→</span>
         </button>
       </form>
 
-      <p className="text-xs text-muted-foreground/70">
+      <p className="text-xs leading-relaxed text-muted-foreground/80">
         Only authorize a code you started yourself. Authorizing lets that machine report your
         coding time to the leaderboard.
       </p>
-    </main>
+    </NoticeShell>
   );
 }
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-3 px-6">
-      <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        <span aria-hidden className="text-primary">▲</span> grindeasy
-      </p>
-      <h1 className="font-heading text-3xl font-normal tracking-[-0.01em] [font-optical-sizing:auto] [font-variation-settings:'opsz'_144]">
-        {title}
-      </h1>
-      <p className="text-sm text-muted-foreground">{children}</p>
-    </main>
+    <NoticeShell eyebrow="Pair a device" title={title}>
+      <NoticeText>{children}</NoticeText>
+    </NoticeShell>
   );
 }

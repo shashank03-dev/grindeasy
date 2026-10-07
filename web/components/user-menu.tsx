@@ -97,17 +97,17 @@ export function UserMenu({ data }: { data: UserCardData | null }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-input bg-card/70 py-1 pl-1 pr-3 text-[13px] font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary/70"
+        className="flex items-center gap-2.5 border border-input bg-card/80 py-1 pl-1 pr-3 font-mono text-[12px] text-foreground backdrop-blur-sm transition-colors hover:border-signal"
       >
         <span className="relative">
-          <Avatar className="h-7 w-7 rounded-full">
-            {data.avatarUrl ? <AvatarImage src={data.avatarUrl} alt="" /> : null}
-            <AvatarFallback className="rounded-full bg-secondary text-[10px] text-muted-foreground">
+          <Avatar className="h-7 w-7 rounded-none after:rounded-none">
+            {data.avatarUrl ? <AvatarImage src={data.avatarUrl} alt="" className="rounded-none" /> : null}
+            <AvatarFallback className="rounded-none bg-secondary text-[10px] text-muted-foreground">
               {data.username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           {data.isOnline ? (
-            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-primary" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 border-2 border-card bg-primary" />
           ) : null}
         </span>
         <span className="max-w-[10ch] truncate">{data.username}</span>

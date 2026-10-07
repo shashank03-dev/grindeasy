@@ -1,3 +1,5 @@
+import { NoticeShell, NoticeText } from "@/components/site/notice-shell";
+
 const MESSAGES: Record<string, { title: string; body: string }> = {
   denied: {
     title: "Slack install cancelled",
@@ -37,14 +39,8 @@ export default async function SlackConnectDonePage({
   const { title, body } = messageFor(error);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-3 px-6">
-      <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        <span aria-hidden className="text-primary">▲</span> grindeasy
-      </p>
-      <h1 className="font-heading text-3xl font-normal tracking-[-0.01em] [font-optical-sizing:auto] [font-variation-settings:'opsz'_144]">
-        {title}
-      </h1>
-      <p className="text-sm text-muted-foreground">{body}</p>
-    </main>
+    <NoticeShell eyebrow="Weekly recap · Slack" title={title}>
+      <NoticeText>{body}</NoticeText>
+    </NoticeShell>
   );
 }

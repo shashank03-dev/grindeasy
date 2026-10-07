@@ -1,72 +1,24 @@
-import type { Metadata } from "next";
-import localFont from "next/font/local";
+import type { Metadata, Viewport } from "next";
+import { GeistMono } from "geist/font/mono";
+import { GeistPixelCircle, GeistPixelSquare } from "geist/font/pixel";
+import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
-// Licensed faces, self-hosted, subset to latin (~60KB total). FF DIN Condensed
-// Black is the display voice — compressed, industrial, only ever set large. FF DIN
-// carries the working text. Akkurat Mono is the data voice: the board, the timers,
-// the shell command. Changing a face means changing only the src paths here.
-const dinCondensed = localFont({
-  src: "../public/fonts/din-condensed-black.woff2",
-  variable: "--font-din-condensed",
-  weight: "900",
-  display: "swap",
-  fallback: ["Arial Narrow", "Impact", "sans-serif"],
-});
-
-const din = localFont({
-  src: [
-    { path: "../public/fonts/din-regular.woff2", weight: "400", style: "normal" },
-    { path: "../public/fonts/din-bold.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-din",
-  display: "swap",
-  fallback: ["Helvetica Neue", "Arial", "sans-serif"],
-});
-
-const akkuratMono = localFont({
-  src: "../public/fonts/akkurat-mono.woff2",
-  variable: "--font-akkurat-mono",
-  weight: "400",
-  display: "swap",
-  fallback: ["ui-monospace", "SFMono-Regular", "monospace"],
-});
-
-// Instrument Serif (SIL OFL, self-hosted) is the editorial counter-voice: italic
-// lowercase words set inside the condensed caps. Accent only — never body text.
-const instrumentSerif = localFont({
-  src: [
-    { path: "../public/fonts/instrument-serif.woff2", weight: "400", style: "normal" },
-    { path: "../public/fonts/instrument-serif-italic.woff2", weight: "400", style: "italic" },
-  ],
-  variable: "--font-instrument-serif",
-  display: "swap",
-  fallback: ["Georgia", "Times New Roman", "serif"],
-});
-
-// The landing's editorial voice (valeran-style rework): Maltiner Display is the
-// big fashion serif for the hero, tool names and footer wordmark; The Neue Black
-// (League of Moveable Type, OFL) is the letterspaced caps face for eyebrows.
-const maltiner = localFont({
-  src: "../public/fonts/maltiner.woff2",
-  variable: "--font-maltiner",
-  weight: "400",
-  display: "swap",
-  fallback: ["Georgia", "Times New Roman", "serif"],
-});
-
-const neueBlack = localFont({
-  src: "../public/fonts/the-neue-black.woff2",
-  variable: "--font-neue-black",
-  weight: "900",
-  display: "swap",
-  fallback: ["Arial Narrow", "Impact", "sans-serif"],
-});
-
+// One family, three registers. Geist Sans carries everything you read, set
+// huge and tight for display. Geist Mono is the data voice: labels, paths,
+// timers, the shell command. Geist Pixel is the screen itself — section
+// numerals, ranks, the wordmark — the same pixel grid the dither field is
+// drawn on, so type and image share one resolution. Pixel Circle is the
+// dot-matrix variant, kept for live counters.
 export const metadata: Metadata = {
   title: "grindeasy · see what you're coding with",
   description:
     "A local agent that puts the AI tool you're actually using on your Discord profile, live. Claude Code, Codex, Cursor and more. It never reads your code.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08090a",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -77,7 +29,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${din.variable} ${dinCondensed.variable} ${akkuratMono.variable} ${instrumentSerif.variable} ${maltiner.variable} ${neueBlack.variable} h-full antialiased`}
+      className={`dark ${GeistSans.variable} ${GeistMono.variable} ${GeistPixelSquare.variable} ${GeistPixelCircle.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
