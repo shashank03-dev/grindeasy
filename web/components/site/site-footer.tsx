@@ -15,13 +15,13 @@ export function SiteFooter() {
           <span className="text-paper">It never reads your code.</span>
         </p>
         <ul className="label flex flex-col gap-3 md:col-span-2 md:col-start-7">
-          <li className="text-muted-foreground/60">Site</li>
+          <li className="text-muted-foreground">Site</li>
           <li><Link href="/" className="link-u text-paper">Home</Link></li>
           <li><Link href="/leaderboard" className="link-u text-paper">Leaderboard</Link></li>
           <li><Link href="/privacy" className="link-u text-paper">Privacy</Link></li>
         </ul>
         <ul className="label flex flex-col gap-3 md:col-span-2">
-          <li className="text-muted-foreground/60">Source</li>
+          <li className="text-muted-foreground">Source</li>
           <li>
             <a href="https://github.com/shashank03-dev/grindeasy" target="_blank" rel="noreferrer" className="link-u text-paper">
               GitHub ↗
@@ -34,14 +34,14 @@ export function SiteFooter() {
           </li>
         </ul>
         <div className="label flex flex-col gap-3 md:col-span-2 md:items-end">
-          <span className="text-muted-foreground/60">Local time</span>
+          <span className="text-muted-foreground">Local time</span>
           <LiveClock className="font-dot text-[22px] tracking-normal text-signal tabular-nums" />
         </div>
       </div>
 
       <p
         data-footer-word
-        className="mt-16 flex select-none justify-between overflow-hidden font-pixel text-[clamp(4rem,19.5vw,22rem)] leading-[0.92] tracking-[-0.02em] text-paper"
+        className="mt-16 flex select-none justify-between overflow-hidden pb-[0.1em] font-pixel text-[clamp(4rem,19.5vw,22rem)] leading-[0.92] tracking-[-0.02em] text-paper"
       >
         <span className="sr-only">grindeasy</span>
         {"grindeasy".split("").map((c, i) => (

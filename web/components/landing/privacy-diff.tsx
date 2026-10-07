@@ -29,7 +29,7 @@ export function PrivacyDiff() {
       data-scene="cage"
       className="relative z-20 bg-paper px-4 py-28 text-ink md:px-10 md:py-36"
     >
-      <p className="label text-ink/55">[06] What leaves</p>
+      <p className="label text-ink/70">[06] What leaves</p>
       <div className="mt-8 grid gap-14 md:grid-cols-12">
         <div className="md:col-span-5">
           <h2 data-privacy-head className="display text-[clamp(3rem,6.6vw,7.2rem)]">
@@ -46,21 +46,21 @@ export function PrivacyDiff() {
         </div>
 
         <div data-diff className="font-mono text-[14px] md:col-span-6 md:col-start-7 md:text-[15px]">
-          <div className="flex items-center justify-between border border-b-0 border-ink/15 bg-ink/[0.04] px-4 py-2.5 text-[12px] text-ink/60">
+          <div className="flex items-center justify-between border border-b-0 border-ink/15 bg-ink/[0.04] px-4 py-2.5 text-[12px] text-ink/70">
             <span>sync.payload</span>
             <span>+5 −5</span>
           </div>
           <div className="border border-ink/15">
-            <p className="bg-ink/[0.06] px-4 py-2 text-[12px] text-ink/55">
+            <p className="bg-ink/[0.06] px-4 py-2 text-[12px] text-ink/70">
               @@ only if you join the board @@
             </p>
             {LEAVES.map((line) => (
               <p data-diff-add key={line} className="flex gap-4 bg-[#2f9e44]/[0.09] px-4 py-2">
-                <span className="w-3 select-none text-[#1f7a32]">+</span>
+                <span className="w-3 select-none text-[#17652a]">+</span>
                 <span>{line}</span>
               </p>
             ))}
-            <p className="bg-ink/[0.06] px-4 py-2 text-[12px] text-ink/55">
+            <p className="bg-ink/[0.06] px-4 py-2 text-[12px] text-ink/70">
               @@ never · no opt-in exists @@
             </p>
             {NEVER.map((line) => (
@@ -98,10 +98,12 @@ export function buildPrivacy(reduced: boolean) {
   gsap.from("[data-diff-add], [data-diff-del]", {
     opacity: 0,
     x: -12,
-    duration: 0.6,
-    stagger: 0.05,
+    duration: 0.45,
+    stagger: 0.035,
     ease: "power3.out",
-    scrollTrigger: { trigger: "[data-diff]", start: "top 75%" },
+    // Starts as the block's top edge enters, so the rows have finished
+    // landing before you are reading them.
+    scrollTrigger: { trigger: "[data-diff]", start: "top 96%" },
   });
   gsap.fromTo(
     "[data-strike]",

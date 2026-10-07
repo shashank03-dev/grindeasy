@@ -7,8 +7,8 @@ import { pad } from "@/components/site/motion";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-// Chapter 02, the whole privacy model in one sentence. The section pins and
-// scroll brings the words up from ink one at a time, while beneath it a real
+// Chapter 02, the whole privacy model in one sentence. Scroll brings the
+// words up one at a time as the chapter arrives, while beneath it a real
 // mtime — this page's own clock, to the millisecond — keeps changing. That
 // number is the only thing the agent ever looks at.
 
@@ -38,7 +38,7 @@ export function Clock() {
           <span data-mtime className="font-dot text-[clamp(1.6rem,3.2vw,2.6rem)] tabular-nums text-paper">
             00:00:00.000
           </span>
-          <span className="label text-muted-foreground/70">contents · never read</span>
+          <span className="label text-muted-foreground">contents · never read</span>
         </div>
       </div>
     </section>
@@ -71,19 +71,28 @@ export function buildClock(reduced: boolean) {
   }
 
   const split = SplitText.create("[data-clock-statement]", { type: "words" });
-  gsap.set(split.words, { opacity: 0.1 });
-  gsap
-    .timeline({
-      scrollTrigger: {
-        trigger: section,
-        start: "top top",
-        end: "+=110%",
-        pin: true,
-        scrub: 0.6,
-      },
-    })
-    .to(split.words, { opacity: 1, stagger: 0.12, duration: 0.3, ease: "none" })
-    .from("[data-clock-copy]", { opacity: 0, y: 30, stagger: 0.1, duration: 0.4 }, ">-0.1");
+  // The words light while the chapter scrolls in, from a floor that is
+  // already legible, so the sentence is never ghost text on its way up.
+  gsap.fromTo(
+    split.words,
+    { opacity: 0.28 },
+    {
+      opacity: 1,
+      stagger: 0.12,
+      ease: "none",
+      scrollTrigger: { trigger: section, start: "top 85%", end: "top 10%", scrub: 0.4 },
+    },
+  );
+  // The copy arrives once, quickly, as it reaches the screen — never parked
+  // half-transparent while a scrub catches up.
+  gsap.from("[data-clock-copy]", {
+    opacity: 0,
+    y: 24,
+    duration: 0.9,
+    stagger: 0.1,
+    ease: "expo.out",
+    scrollTrigger: { trigger: "[data-clock-copy]", start: "top 92%" },
+  });
 
   return () => {
     io.disconnect();

@@ -54,7 +54,7 @@ export function Tiers() {
           <article
             key={tier.name}
             data-tier={tier.name}
-            className="relative flex w-[84vw] shrink-0 flex-col justify-between border border-line bg-ink/40 p-5 backdrop-blur-[2px] md:w-[44vw] md:p-8 group-data-[static]/tiers:w-auto"
+            className="relative flex w-[84vw] shrink-0 flex-col justify-between border border-line bg-ink/88 p-5 backdrop-blur-md md:w-[44vw] md:p-8 group-data-[static]/tiers:w-auto"
             style={{ ["--tier" as string]: TIER_HEX[tier.name] }}
           >
             <div className="label flex items-center justify-between text-muted-foreground">

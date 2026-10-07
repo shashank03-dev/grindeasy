@@ -8,8 +8,9 @@ import { SplitText } from "gsap/SplitText";
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
 // Chapter 07, the invitation. Back to ink; the core returns, hot and green.
-// The install command runs past as a marquee in pixel type — the one line
-// you need — while the headline states the board's rule.
+// The install command runs past as a ticker in pixel type — the one line
+// you need — on a solid band that crosses over the object, so it reads
+// cleanly wherever the core happens to sit.
 
 export function BoardCta() {
   const run = Array.from({ length: 6 });
@@ -29,7 +30,7 @@ export function BoardCta() {
 
       <div
         aria-hidden
-        className="mt-14 border-y border-line py-4 [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]"
+        className="relative mt-14 border-y border-line bg-ink/90 py-4 backdrop-blur-sm"
       >
         <div className="marquee font-pixel text-[clamp(2.4rem,6vw,5.6rem)] leading-none text-paper/90">
           {[0, 1].map((copy) => (
@@ -37,7 +38,7 @@ export function BoardCta() {
               {run.map((_, i) => (
                 <span key={i} className="flex shrink-0 items-center gap-[0.5em] pr-[0.5em]">
                   <span className="text-signal">$</span> npx grindeasy
-                  <span className="text-muted-foreground/40">✳</span>
+                  <span className="text-muted-foreground">✳</span>
                 </span>
               ))}
             </span>
@@ -55,7 +56,7 @@ export function BoardCta() {
           <Link href="/leaderboard" className="slab">
             Enter the leaderboard <span aria-hidden>→</span>
           </Link>
-          <Link href="/leaderboard?range=weekly" className="bracket">
+          <Link href="/leaderboard?range=weekly" className="bracket bg-ink/85 px-3 py-3 backdrop-blur-sm">
             This week
           </Link>
         </div>

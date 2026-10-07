@@ -74,6 +74,9 @@ export function Landing() {
             const r = (el.closest(".pin-spacer") ?? el).getBoundingClientRect();
             return r.top <= mid && r.bottom > mid;
           });
+          // Past the last chapter (the footer) the readout steps aside, so it
+          // never prints over the footer's own bottom line.
+          chapterEl.current?.parentElement?.style.setProperty("opacity", hit ? "1" : "0");
           if (!hit || hit.dataset.chapter === current) return;
           current = hit.dataset.chapter!;
           applyScene(SCENES[hit.dataset.scene as keyof typeof SCENES]);
@@ -104,11 +107,12 @@ export function Landing() {
         <style>{`[data-intro]{opacity:1!important}[data-boot]{display:none!important}`}</style>
       </noscript>
 
-      {/* On phones the object shares the column with body copy, so the
-          field prints at reduced strength there. */}
+      {/* On phones the object shares the column with body copy, so there it
+          prints softer and fades out by mid-screen: small text always lands
+          on plain ink, only the big headlines cross the dither. */}
       <DitherField
         initial={{ ...SCENES.hero, reveal: 0 }}
-        className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-ink max-md:opacity-55"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-ink max-md:opacity-60 max-md:[mask-image:linear-gradient(#000_22%,transparent_58%)]"
       />
       <div aria-hidden className="measure">
         {Array.from({ length: 12 }, (_, i) => (
@@ -123,7 +127,7 @@ export function Landing() {
 
       <p
         aria-hidden
-        className="label pointer-events-none fixed bottom-4 right-4 z-40 hidden items-center gap-3 text-white mix-blend-difference md:bottom-8 md:right-10 md:flex"
+        className="label pointer-events-none fixed bottom-4 right-4 z-40 hidden items-center gap-3 text-white mix-blend-difference transition-opacity duration-500 md:bottom-8 md:right-10 md:flex"
       >
         <span className="h-px w-10 bg-white/50" />
         <span ref={chapterEl}>01 Signal</span>

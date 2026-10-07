@@ -90,7 +90,7 @@ export function Hero() {
 
         <div
           data-hero-hud
-          className="label mt-10 grid grid-cols-2 gap-y-2 border-t border-line pt-4 text-muted-foreground md:grid-cols-4"
+          className="label mt-10 grid grid-cols-2 gap-y-2 border-t border-line pt-4 text-paper/80 md:grid-cols-4"
         >
           <span data-scramble="Watching 13 tools">Watching 13 tools</span>
           <span data-scramble="Signal · mtime only" className="text-right md:text-left">
@@ -151,12 +151,12 @@ export function buildHero(reduced: boolean) {
     .from("[data-hero-hud]", { opacity: 0, duration: 0.6 }, 0.4);
   whenReady(() => tl.play());
 
-  // Leaving: the copy drifts up and thins while the object turns a quarter.
+  // Leaving: the copy drifts up (at full strength — anything still on screen
+  // stays readable) while the object turns a quarter.
   gsap.to(intro, {
     yPercent: -8,
-    opacity: 0.2,
     ease: "none",
-    scrollTrigger: { trigger: section, start: "top top", end: "bottom top", scrub: true },
+    scrollTrigger: { trigger: section, start: "45% top", end: "bottom top", scrub: true },
   });
   const spin = { v: 0 };
   gsap.to(spin, {

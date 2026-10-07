@@ -38,12 +38,16 @@ export function Presence() {
               <li
                 key={step.k}
                 data-step
-                className="grid grid-cols-[3rem_1fr] gap-x-4 border-b border-line py-4 transition-opacity duration-500"
+                className="group/step relative grid grid-cols-[3rem_1fr] gap-x-4 border-b border-line py-4 before:absolute before:inset-y-0 before:-left-4 before:w-[2px] before:origin-top before:scale-y-0 before:bg-signal before:transition-transform before:duration-500 data-[active]:before:scale-y-100 md:before:-left-5"
               >
-                <span className="font-pixel text-[15px] text-signal">0{i + 1}</span>
+                <span className="font-pixel text-[15px] text-muted-foreground transition-colors duration-300 group-data-[active]/step:text-signal">
+                  0{i + 1}
+                </span>
                 <div>
-                  <p className="label text-paper">{step.k}</p>
-                  <p className="mt-1.5 max-w-[42ch] text-[15px] leading-snug text-muted-foreground">
+                  <p className="label text-muted-foreground transition-colors duration-300 group-data-[active]/step:text-paper">
+                    {step.k}
+                  </p>
+                  <p className="mt-1.5 max-w-[42ch] text-[15px] leading-snug text-muted-foreground transition-colors duration-300 group-data-[active]/step:text-paper/90">
                     {step.body}
                   </p>
                 </div>
@@ -55,7 +59,7 @@ export function Presence() {
           <div data-presence-card className="w-full max-w-[400px]">
             <DiscordCard />
           </div>
-          <p data-presence-status className="label text-muted-foreground">
+          <p data-presence-status className="label border border-line bg-ink/90 px-3 py-2 text-muted-foreground">
             discord · rich presence · live
           </p>
         </div>
@@ -83,7 +87,7 @@ export function buildPresence(reduced: boolean) {
     if (b === beat) return;
     const prev = beat;
     beat = b;
-    steps.forEach((s, i) => (s.style.opacity = i === b ? "1" : "0.32"));
+    steps.forEach((s, i) => s.toggleAttribute("data-active", i === b));
     if (b >= 1 && prev < 1) scramble(rank, RANK, { duration: 0.6 });
     if (b < 1) rank.textContent = "· · ·";
     activity.textContent = b >= 2 ? "Claude Code + Codex" : "Claude Code";
@@ -112,10 +116,12 @@ export function buildPresence(reduced: boolean) {
       onUpdate: (self) => setBeat(Math.min(3, Math.floor(self.progress * 4))),
     },
   });
-  tl.from(rows, { opacity: 0, y: 14, stagger: 0.05, duration: 0.2, ease: "power2.out" }, 0)
-    .from(card, { rotateX: 28, rotateZ: -3, scale: 0.9, transformPerspective: 900, duration: 0.3 }, 0)
+  // The card must be readable for nearly the whole pin, so it assembles in
+  // the first ~8% of it rather than across the first beat.
+  tl.from(rows, { opacity: 0, y: 14, stagger: 0.012, duration: 0.05, ease: "power2.out" }, 0)
+    .from(card, { rotateX: 28, rotateZ: -3, scale: 0.9, transformPerspective: 900, duration: 0.08 }, 0)
     .to(clock, { t: 8047, duration: 0.75, onUpdate: () => (timer.textContent = formatElapsed(clock.t)) }, 0)
-    .to(card, { opacity: 0.18, scale: 0.96, filter: "grayscale(1)", duration: 0.15 }, 0.8)
+    .to(card, { opacity: 0.85, scale: 0.96, filter: "grayscale(1)", duration: 0.12 }, 0.82)
     .to({}, { duration: 0.05 });
 
   return () => {};

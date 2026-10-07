@@ -38,7 +38,7 @@ export function Scanner() {
         <p className="label text-muted-foreground">[03] The thirteen it watches</p>
         <p className="font-pixel text-[clamp(1.4rem,2.6vw,2.4rem)] leading-none tabular-nums text-paper group-data-[static]/scan:hidden">
           <span data-scan-index>01</span>
-          <span className="text-muted-foreground/50">/{TOOL_MARKS.length}</span>
+          <span className="text-muted-foreground">/{TOOL_MARKS.length}</span>
         </p>
       </div>
 
@@ -65,11 +65,11 @@ export function Scanner() {
                 data-scan-item
                 className="display flex h-[1.06em] -translate-y-1/2 items-center gap-[0.3em] whitespace-nowrap text-[clamp(2.4rem,6.6vw,7rem)] text-paper group-data-[static]/scan:h-auto group-data-[static]/scan:translate-y-0 group-data-[static]/scan:py-2"
               >
-                <span className="font-mono text-[0.16em] tracking-normal text-muted-foreground">
+                <span className="font-mono text-[max(0.16em,11px)] tracking-normal text-paper/70">
                   {pad(i + 1)}
                 </span>
                 {tool.name}
-                <span className="hidden font-mono text-[0.17em] tracking-normal text-muted-foreground group-data-[static]/scan:inline">
+                <span className="hidden font-mono text-[max(0.17em,12px)] tracking-normal text-muted-foreground group-data-[static]/scan:inline">
                   {tool.watch}
                 </span>
               </li>
@@ -79,7 +79,7 @@ export function Scanner() {
 
         {/* The readout. */}
         <div className="relative flex flex-col justify-center md:col-span-4 md:col-start-9 group-data-[static]/scan:!hidden">
-          <div className="border border-line bg-ink/70 p-5 backdrop-blur-md md:p-6">
+          <div className="border border-line bg-ink/90 p-5 backdrop-blur-md md:p-6">
             <div className="relative hidden aspect-square w-28 text-paper md:block">
               {TOOL_MARKS.map((tool, i) => (
                 <div
@@ -155,7 +155,7 @@ export function buildScanner(reduced: boolean) {
     gsap.set(list, { y: -p * h });
     items.forEach((el, i) => {
       const d = Math.abs(i - p);
-      el.style.opacity = String(Math.max(0.1, 1 - d * 0.62));
+      el.style.opacity = String(Math.max(0.3, 1 - d * 0.32));
     });
     setActive(Math.round(p));
   };

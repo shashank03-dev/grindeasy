@@ -14,11 +14,11 @@ export type Scene = Omit<FieldTargets, "reveal" | "spin">;
 export const SCENES = {
   hero: { shape: SHAPES.core, x: 0.5, y: 0.04, scale: 0.78, tint: PAPER, energy: 0.6 },
   clock: { shape: SHAPES.ring, x: 0.42, y: -0.05, scale: 0.95, tint: PAPER, energy: 0.35 },
-  scan: { shape: SHAPES.scan, x: 0.19, y: 0, scale: 0.9, tint: PAPER, energy: 0.5 },
+  scan: { shape: SHAPES.scan, x: 0.62, y: 0, scale: 0.9, tint: PAPER, energy: 0.5 },
   card: { shape: SHAPES.card, x: 0.44, y: 0.0, scale: 0.6, tint: SIGNAL, energy: 0.3 },
   tiers: { shape: SHAPES.diamond, x: 0.5, y: 0.04, scale: 0.85, tint: PAPER, energy: 0.45 },
   cage: { shape: SHAPES.cage, x: 0, y: 0, scale: 1, tint: PAPER, energy: 0.4 },
-  board: { shape: SHAPES.core, x: 0.45, y: 0.1, scale: 0.85, tint: SIGNAL, energy: 0.9 },
+  board: { shape: SHAPES.core, x: 0.48, y: 0.24, scale: 0.7, tint: SIGNAL, energy: 0.9 },
 } satisfies Record<string, Scene>;
 
 let active: Scene | null = null;
@@ -31,7 +31,7 @@ export function applyScene(scene: Scene) {
   const narrow = window.innerWidth < 768;
   setField(
     narrow
-      ? { ...scene, x: 0.08, y: 0.24, scale: scene.scale * 0.62, tint: [...scene.tint] }
+      ? { ...scene, x: 0.12, y: 0.3, scale: scene.scale * 0.5, tint: [...scene.tint] }
       : { ...scene, tint: [...scene.tint] },
   );
 }
