@@ -7,7 +7,7 @@ import { TOOL_MARKS, type ToolMark } from "./tool-data";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Chapter 03. The thirteen tools pass under a focus line as you scroll, like a
+// Chapter 04. The thirteen tools pass under a focus line as you scroll, like a
 // scanner stepping through folders; whichever sits on the line is "detected"
 // and the readout on the right reports what the agent actually checks for it
 // — one folder, one timestamp. Under reduced motion the pin is dropped and
@@ -30,12 +30,12 @@ export function Scanner() {
   return (
     <section
       id="scan"
-      data-chapter="03 Scan"
+      data-chapter="04 Scan"
       data-scene="scan"
       className="group/scan relative z-10 h-svh overflow-hidden px-4 md:px-10 data-[static]:h-auto data-[static]:py-28"
     >
       <div className="pointer-events-none absolute inset-x-4 top-24 z-20 flex items-start justify-between md:inset-x-10 md:top-28 group-data-[static]/scan:static">
-        <p className="label text-muted-foreground">[03] The thirteen it watches</p>
+        <p className="label text-muted-foreground">[04] The thirteen it watches</p>
         <p className="font-pixel text-[clamp(1.4rem,2.6vw,2.4rem)] leading-none tabular-nums text-paper group-data-[static]/scan:hidden">
           <span data-scan-index>01</span>
           <span className="text-muted-foreground">/{TOOL_MARKS.length}</span>

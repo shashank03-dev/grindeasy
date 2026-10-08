@@ -7,7 +7,7 @@ import { DiscordCard } from "./discord-card";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Chapter 04, the card's whole life in four beats. The section pins; scroll
+// Chapter 02, the card's whole life in four beats. The section pins; scroll
 // walks the steps on the left, and the card on the right does what each step
 // says — appears, takes a rank, picks up a second tool, clears. The elapsed
 // timer is scroll: two hours and change across the pin.
@@ -23,15 +23,15 @@ export function Presence() {
   return (
     <section
       id="presence"
-      data-chapter="04 Card"
+      data-chapter="02 Card"
       data-scene="card"
       className="relative z-10 flex min-h-svh flex-col px-4 py-24 md:h-svh md:px-10 md:py-0 md:pt-28"
     >
-      <p className="label text-muted-foreground">[04] Where it shows</p>
+      <p className="label text-muted-foreground">[02] Where it shows</p>
       <div className="mt-8 grid flex-1 gap-12 md:grid-cols-12 md:items-center md:pb-16">
         <div className="md:col-span-5">
           <h2 className="display text-[clamp(2.8rem,5.6vw,6rem)] text-paper">
-            All of it lands on your profile.
+            It lands on your Discord profile.
           </h2>
           <ol className="mt-10 border-t border-line">
             {STEPS.map((step, i) => (

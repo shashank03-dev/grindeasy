@@ -11,7 +11,7 @@ import "./globals.css";
 // drawn on, so type and image share one resolution. Pixel Circle is the
 // dot-matrix variant, kept for live counters.
 export const metadata: Metadata = {
-  title: "grindeasy · see what you're coding with",
+  title: "grindeasy · show Discord what you're coding with",
   description:
     "A local agent that puts the AI tool you're actually using on your Discord profile, live. Claude Code, Codex, Cursor and more. It never reads your code.",
 };

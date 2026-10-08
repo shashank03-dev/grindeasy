@@ -7,7 +7,7 @@ import { pad } from "@/components/site/motion";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-// Chapter 02, the whole privacy model in one sentence. Scroll brings the
+// Chapter 03, the whole privacy model in one sentence. Scroll brings the
 // words up one at a time as the chapter arrives, while beneath it a real
 // mtime — this page's own clock, to the millisecond — keeps changing. That
 // number is the only thing the agent ever looks at.
@@ -16,11 +16,11 @@ export function Clock() {
   return (
     <section
       id="clock"
-      data-chapter="02 Clock"
+      data-chapter="03 Clock"
       data-scene="clock"
       className="relative z-10 flex min-h-svh flex-col justify-center px-4 py-24 md:px-10"
     >
-      <p className="label text-muted-foreground">[02] How it knows</p>
+      <p className="label text-muted-foreground">[03] How it knows</p>
       <h2
         data-clock-statement
         className="display mt-8 max-w-[13ch] text-[clamp(3.2rem,9.6vw,10.5rem)] text-paper"

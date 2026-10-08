@@ -11,7 +11,7 @@ export function SiteFooter() {
     <footer className="relative z-10 overflow-hidden border-t border-line bg-ink px-4 pt-16 md:px-10">
       <div className="grid gap-10 md:grid-cols-12">
         <p className="max-w-[28ch] text-[15px] leading-snug text-muted-foreground md:col-span-4">
-          A tiny local agent for your AI coding hours.{" "}
+          Your AI coding tool, live on your Discord profile.{" "}
           <span className="text-paper">It never reads your code.</span>
         </p>
         <ul className="label flex flex-col gap-3 md:col-span-2 md:col-start-7">

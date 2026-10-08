@@ -43,19 +43,19 @@ export function Hero() {
     >
       <div data-intro className="flex flex-1 flex-col">
         <p data-hero-eyebrow className="label text-muted-foreground">
-          [01] Local agent · Discord Rich Presence · MIT
+          [01] Your AI tool, live on Discord · MIT
         </p>
 
         <div className="mt-auto grid gap-10 md:grid-cols-12 md:items-end">
           <h1 className="display text-[clamp(3.4rem,10.4vw,11.5rem)] text-paper md:col-span-9">
             <span data-hero-line className="block">
-              See what
+              Show Discord
             </span>
             <span data-hero-line className="block">
-              you’re coding
+              what you’re
             </span>
             <span data-hero-line className="block">
-              with:
+              coding with:
             </span>
             {/* The line the sentence is waiting for. Pixel face, phosphor, a
                 touch smaller so the longest name still fits the column. */}
@@ -68,9 +68,10 @@ export function Hero() {
           </h1>
 
           <div className="flex flex-col gap-7 border border-line bg-ink/75 p-5 backdrop-blur-md md:col-span-3 md:mb-[1.2vw]">
-            <p data-hero-sub className="max-w-[34ch] text-[16px] leading-[1.45] text-paper/80">
-              A tiny local agent that puts the AI tool you’re actually using on your Discord
-              profile, live while you work.{" "}
+            <p data-hero-sub className="max-w-[34ch] text-[16px] leading-[1.45] text-paper/80 md:text-[17px]">
+              A tiny local agent that puts the AI tool you’re using on your{" "}
+              <span className="text-paper">Discord profile, live</span>. Claude Code, Codex, Cursor
+              and ten more. Your hours climb a public leaderboard.{" "}
               <span className="text-paper">It never reads your code.</span>
             </p>
             <div data-hero-actions className="flex flex-wrap items-center gap-x-6 gap-y-4">

@@ -24,9 +24,9 @@ gsap.registerPlugin(ScrollTrigger);
 // grindeasy, told in seven chapters over one dithered screen.
 //
 //   01 Signal   the sentence, finished live by the tool it detects
-//   02 Clock    the privacy model: it reads mtimes, never contents
-//   03 Scan     the thirteen tools, stepped through like folders
-//   04 Card     the Discord card's whole life, in four beats
+//   02 Card     the Discord card's whole life, in four beats
+//   03 Clock    the privacy model: it reads mtimes, never contents
+//   04 Scan     the thirteen tools, stepped through like folders
 //   05 Tiers    the ladder, sideways, from the real scoring module
 //   06 Privacy  the sync payload as a diff, on paper
 //   07 Board    the invitation
@@ -53,9 +53,9 @@ export function Landing() {
         buildBoot();
         cleanups.push(
           buildHero(reduced),
+          buildPresence(reduced),
           buildClock(reduced),
           buildScanner(reduced),
-          buildPresence(reduced),
           buildTiers(reduced),
           buildPrivacy(reduced),
           buildBoard(reduced),
@@ -135,9 +135,9 @@ export function Landing() {
 
       <main>
         <Hero />
+        <Presence />
         <Clock />
         <Scanner />
-        <Presence />
         <Tiers />
         <PrivacyDiff />
         <BoardCta />
